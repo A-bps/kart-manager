@@ -1167,11 +1167,18 @@ function Financeiro() {
                     {formaPagLabel[f.formaPagamento] || f.formaPagamento || '--'}
                   </td>
                   <td className="px-5 py-3">
-                    <button onClick={() => { fat_update(f.id, { status: f.status === 'pago' ? 'pendente' : 'pago' }); reload(); }}
-                      className={`border px-2 py-0.5 transition-colors cursor-pointer ${f.status === 'pendente' ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20' : 'border-green-500/40 bg-green-500/10 text-green-400 hover:bg-green-500/20'}`}
+                    <button onClick={() => {
+                        const novoStatus = f.status === 'pago' ? 'pendente' : 'pago';
+                        const update = { status: novoStatus };
+                        if (novoStatus === 'pago') update.data = new Date().toISOString().slice(0, 10);
+                        fat_update(f.id, update);
+                        reload();
+                      }}
+                      className={`group border px-2 py-0.5 transition-colors cursor-pointer ${f.status === 'pendente' ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-green-500/20 hover:border-green-500/40 hover:text-green-400' : 'border-green-500/40 bg-green-500/10 text-green-400 hover:bg-yellow-500/20 hover:border-yellow-500/40 hover:text-yellow-400'}`}
                       style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}
-                      title="Clique para alternar status">
-                      {f.status === 'pendente' ? 'PENDENTE' : 'PAGO'}
+                      title={f.status === 'pendente' ? 'Clique para marcar como PAGO' : 'Clique para marcar como PENDENTE'}>
+                      <span className="group-hover:hidden">{f.status === 'pendente' ? 'PENDENTE' : 'PAGO'}</span>
+                      <span className="hidden group-hover:inline">{f.status === 'pendente' ? '→ PAGO' : '→ PENDENTE'}</span>
                     </button>
                   </td>
                   <td className="px-5 py-3 text-green-400 whitespace-nowrap" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '13px', fontWeight: '600' }}>

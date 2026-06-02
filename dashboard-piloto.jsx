@@ -55,6 +55,12 @@ function reservas_remover(id) { reservas_salvar(reservas_listar().filter(r => r.
 function reservas_do_horario(horarioId) { return reservas_listar().filter(r => r.horarioId === horarioId); }
 function reservas_do_piloto(pilotoId) { return reservas_listar().filter(r => r.pilotoId === pilotoId); }
 
+function fat_registrar(d) {
+  const lista = JSON.parse(localStorage.getItem('sp_faturamento') || '[]');
+  lista.push({ id: `f${Date.now()}`, data: new Date().toISOString().slice(0, 10), status: 'pendente', formaPagamento: 'pix', ...d });
+  localStorage.setItem('sp_faturamento', JSON.stringify(lista));
+}
+
 function historico_listar() { return JSON.parse(localStorage.getItem('sp_historico') || '[]'); }
 function historico_do_piloto(nome) {
   return historico_listar()
@@ -284,6 +290,15 @@ function Agendar({ onConfirmado, onTabChange }) {
       qtd,
       formaPagamento,
       criadaEm:      new Date().toISOString(),
+    });
+    const valor = calcPreco(slotSel.pista, formato, qtd);
+    const descFormato = formato === 'tempo' ? `${qtd} min` : `${qtd} voltas`;
+    fat_registrar({
+      valor,
+      descricao:     `Agendamento ${slotSel.pista?.nome || ''} — ${pilotoNome.trim()} (${descFormato}) — ${data}`,
+      formaPagamento,
+      reservaId:     id,
+      data,
     });
     onConfirmado({
       data,
