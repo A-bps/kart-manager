@@ -1,0 +1,375 @@
+/* =========================================================
+   style.css — Speed Park
+   Estilos unificados: Animações, Utilitários Brutalistas e Responsividade.
+   ========================================================= */
+
+/* --- 1. ANIMAÇÕES & KEYFRAMES (antigo animations.css) --- */
+@media (prefers-reduced-motion: no-preference) {
+
+  .reveal-up {
+    opacity: 0;
+    transform: translateY(40px);
+    transition:
+      opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .reveal-up.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .stagger-1 {
+    transition-delay: 0.1s;
+  }
+
+  .stagger-2 {
+    transition-delay: 0.2s;
+  }
+
+  .stagger-3 {
+    transition-delay: 0.3s;
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+
+    0%,
+    100% {
+      box-shadow: 0 0 15px rgba(217, 30, 91, 0.5), 4px 4px 0px #d91e5b;
+    }
+
+    50% {
+      box-shadow: 0 0 30px rgba(217, 30, 91, 0.8), 4px 4px 0px #d91e5b;
+    }
+  }
+
+  .brutalist-button.cta-pulse {
+    animation: pulse-glow 3s infinite;
+  }
+
+  @keyframes scanline {
+    0% {
+      transform: translateY(-100%);
+    }
+
+    100% {
+      transform: translateY(100%);
+    }
+  }
+
+  .scanline-overlay::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 10vh;
+    background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.02), transparent);
+    animation: scanline 8s linear infinite;
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .shimmer-text {
+    background: linear-gradient(90deg,
+        currentColor 25%,
+        #ffb2bd 50%,
+        currentColor 75%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 3s infinite;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-text {
+    color: inherit;
+  }
+}
+
+/* --- 2. COMPONENTES & UTILITÁRIOS (antigo components.css) --- */
+.skew-x-m10 {
+  transform: skewX(-10deg);
+}
+
+.skew-x-10 {
+  transform: skewX(10deg);
+}
+
+.checkered-pattern {
+  background-image:
+    linear-gradient(45deg,
+      rgba(255, 255, 255, 0.03) 25%, transparent 25%,
+      transparent 75%, rgba(255, 255, 255, 0.03) 75%),
+    linear-gradient(45deg,
+      rgba(255, 255, 255, 0.03) 25%, transparent 25%,
+      transparent 75%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+
+.speed-shear {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 3vw), 0 100%);
+}
+
+.brutalist-button {
+  box-shadow: 4px 4px 0px #d91e5b;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.brutalist-button:hover {
+  transform: translate(2px, 2px) skewX(-10deg) scale(1.05);
+  box-shadow: 2px 2px 0px #d91e5b;
+}
+
+.nav-link {
+  position: relative;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -2px;
+  left: 0;
+  background-color: #ffb2bd;
+  transition: width 0.3s ease;
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
+.sessao-card {
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s ease;
+}
+
+.sessao-card:hover {
+  transform: translateY(-5px) scale(1.02);
+  box-shadow: 0 10px 30px -10px rgba(217, 30, 91, 0.3);
+}
+
+#hero-bg {
+  transition: transform 0.1s ease-out;
+}
+
+.hero-bg-image {
+  background-image: url('./src/assets/images/TelaInicial.png');
+  background-size: cover;
+  background-position: center;
+}
+
+/* --- 3. RESPONSIVIDADE (antigo responsive.css) --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .text-display-hero {
+    font-size: 58px !important;
+  }
+
+  .text-headline-lg {
+    font-size: 32px !important;
+  }
+
+  .text-headline-md {
+    font-size: 26px !important;
+  }
+
+  .text-headline-sm {
+    font-size: 19px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .px-margin-edge {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .speed-shear {
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5vw), 0 100%);
+  }
+}
+
+@media (max-width: 640px) {
+  #hero-section {
+    min-height: 70vh;
+  }
+
+  .auto-rows-\[300px\] {
+    grid-auto-rows: auto;
+  }
+
+  #hero-section .flex-wrap {
+    flex-direction: column;
+  }
+
+  #hero-section .flex-wrap button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (hover: none) {
+  #hero-bg {
+    transition: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .py-24 {
+    padding-top: 7rem;
+    padding-bottom: 7rem;
+  }
+}
+
+/* --- 4. MODAL CADASTRO DE PILOTO --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(1, 15, 31, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modal-fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-panel {
+  background: #122131;
+  border: 1px solid rgba(155, 204, 246, 0.2);
+  border-top: 3px solid #d91e5b;
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 8px 8px 0px #d91e5b, 0 20px 60px rgba(1, 15, 31, 0.9);
+  animation: modal-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  scrollbar-width: thin;
+  scrollbar-color: #d91e5b #051424;
+}
+
+.modal-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.modal-panel::-webkit-scrollbar-track {
+  background: #051424;
+}
+
+.modal-panel::-webkit-scrollbar-thumb {
+  background: #d91e5b;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modal-slide-up {
+  from { opacity: 0; transform: translateY(32px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-input {
+  width: 100%;
+  background: #051424;
+  border: 1px solid rgba(91, 64, 67, 0.6);
+  color: #d4e4fa;
+  padding: 12px 16px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.modal-input:focus {
+  border-color: #d91e5b;
+  box-shadow: 0 0 0 2px rgba(217, 30, 91, 0.2);
+}
+
+.modal-input::placeholder {
+  color: rgba(212, 228, 250, 0.35);
+}
+
+.modal-input option {
+  background: #122131;
+  color: #d4e4fa;
+}
+
+.modal-label {
+  display: block;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(227, 189, 194, 0.8);
+  margin-bottom: 6px;
+}
+
+.modal-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 480px) {
+  .modal-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+body.modal-open {
+  overflow: hidden;
+}
