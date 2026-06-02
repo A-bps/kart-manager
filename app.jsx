@@ -880,7 +880,7 @@ function Hero() {
             NO SPEED PARK
           </h1>
 
-          <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mb-10 border-l-4 border-secondary pl-6 py-2 bg-surface/40 backdrop-blur-sm reveal-up stagger-1">
+          <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mb-6 sm:mb-10 border-l-4 border-secondary pl-6 py-2 bg-surface/40 backdrop-blur-sm reveal-up stagger-1">
             A pista de kart mais rápida e tecnológica da região. Venha testar seus limites
             com frota renovada e telemetria profissional.
           </p>
@@ -996,7 +996,7 @@ function Sessoes() {
         ))}
 
         <div className="md:col-span-12 bg-surface-container border border-secondary/20 relative overflow-hidden flex flex-col md:flex-row sessao-card reveal-up stagger-3 group hover:border-primary-container/80">
-          <div className="w-full md:w-1/3 bg-surface-container-high flex items-center justify-center p-8 border-r border-secondary/20 relative">
+          <div className="w-full md:w-1/3 bg-surface-container-high flex items-center justify-center p-8 border-b border-secondary/20 md:border-b-0 md:border-r relative min-h-[90px]">
             <span
               className="font-headline-lg text-headline-lg text-surface-variant absolute -rotate-90 origin-center tracking-widest uppercase opacity-50 group-hover:text-primary-container/50 transition-colors"
               aria-hidden="true"
@@ -1366,18 +1366,20 @@ function Rankings() {
         </div>
 
         <div className="bg-surface-container border border-secondary/20 overflow-hidden reveal-up stagger-1">
-          <div className="grid grid-cols-[3rem_1fr_auto_auto_auto] gap-4 px-6 py-4 bg-surface-container-high border-b border-secondary/20">
+          <div className="grid grid-cols-[2.5rem_1fr_auto] gap-3 sm:gap-4 px-4 sm:px-6 py-4 bg-surface-container-high border-b border-secondary/20">
             <span className="font-label-caps text-label-caps text-on-surface-variant">#</span>
             <span className="font-label-caps text-label-caps text-on-surface-variant">PILOTO</span>
-            <span className="font-label-caps text-label-caps text-on-surface-variant text-right hidden sm:block">MELHOR VOLTA</span>
-            <span className="font-label-caps text-label-caps text-on-surface-variant text-right hidden md:block">CORRIDAS</span>
-            <span className="font-label-caps text-label-caps text-on-surface-variant text-right">PTS</span>
+            <div className="flex items-center justify-end gap-4 sm:gap-6">
+              <span className="font-label-caps text-label-caps text-on-surface-variant text-right hidden sm:block">MELHOR VOLTA</span>
+              <span className="font-label-caps text-label-caps text-on-surface-variant text-right hidden md:block">CORRIDAS</span>
+              <span className="font-label-caps text-label-caps text-on-surface-variant text-right">PTS</span>
+            </div>
           </div>
 
           {pilotos.map((piloto, i) => (
             <div
               key={piloto.pos}
-              className={`grid grid-cols-[3rem_1fr_auto_auto_auto] gap-4 px-6 py-4 border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high group ${i === 0 ? 'bg-primary-container/5' : ''
+              className={`grid grid-cols-[2.5rem_1fr_auto] gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high group ${i === 0 ? 'bg-primary-container/5' : ''
                 }`}
             >
               <div className="flex items-center">
@@ -1398,19 +1400,13 @@ function Rankings() {
                 </span>
               </div>
 
-              <div className="hidden sm:flex items-center justify-end">
-                <span className="font-label-data text-label-data text-secondary shimmer-text">
+              <div className="flex items-center justify-end gap-4 sm:gap-6">
+                <span className="font-label-data text-label-data text-secondary shimmer-text hidden sm:block">
                   {piloto.melhorVolta}s
                 </span>
-              </div>
-
-              <div className="hidden md:flex items-center justify-end">
-                <span className="font-label-data text-label-data text-on-surface-variant">
+                <span className="font-label-data text-label-data text-on-surface-variant hidden md:block">
                   {piloto.corridas}
                 </span>
-              </div>
-
-              <div className="flex items-center justify-end">
                 <span className={`font-label-data text-label-data ${i === 0 ? 'text-primary shimmer-text' : 'text-on-surface-variant'}`}>
                   {piloto.pontos}
                 </span>
@@ -1467,7 +1463,7 @@ function Sobre() {
       />
 
       <div className="max-w-container-max mx-auto px-margin-edge relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-24">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center mb-16 sm:mb-24">
           <div className="reveal-up">
             <p className="font-label-caps text-label-caps text-secondary mb-4 tracking-widest">
               NOSSA HISTÓRIA
@@ -1493,7 +1489,7 @@ function Sobre() {
             {stats.map((stat) => (
               <div
                 key={stat.label}
-                className="bg-surface-container border border-secondary/20 p-8 flex flex-col justify-between group hover:border-primary-container/60 transition-colors"
+                className="bg-surface-container border border-secondary/20 p-5 sm:p-8 flex flex-col justify-between group hover:border-primary-container/60 transition-colors"
               >
                 <div className="font-display-hero text-display-hero text-primary-container italic leading-none shimmer-text">
                   {stat.valor}
