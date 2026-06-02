@@ -29,6 +29,15 @@ function frota_setStatus(id, status) {
 }
 function frota_remover(id) { frota_salvar(frota_listar().filter(k => k.id !== id)); }
 
+function calcCategoria(nascimento) {
+  if (!nascimento) return 'open';
+  const hoje = new Date();
+  const nasc = new Date(nascimento + 'T12:00:00');
+  let idade = hoje.getFullYear() - nasc.getFullYear();
+  if (hoje < new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate())) idade--;
+  return idade <= 13 ? 'junior' : 'open';
+}
+
 // === horários (grade criada pelo admin) ===
 function horarios_listar() { return JSON.parse(localStorage.getItem('sp_horarios') || '[]'); }
 function horarios_salvar(l) { localStorage.setItem('sp_horarios', JSON.stringify(l)); }
@@ -96,9 +105,9 @@ function somarDias(data, n) {
 
 // === agenda fixa ===
 const PISTAS = [
-  { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550 },
-  { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800 },
-  { id: 'pista3', nome: 'Pista 3', capacidade: 30, metros: 1200 },
+  { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550,  categoria: 'junior' },
+  { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800,  categoria: 'open'   },
+  { id: 'pista3', nome: 'Pista 3', capacidade: 30, metros: 1200, categoria: 'open'   },
 ];
 const HORARIOS_SEMANA = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
 const HORARIOS_FDS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
@@ -1223,7 +1232,7 @@ function Financeiro() {
 
 // === modal cadastrar piloto (pelo admin) ===
 function ModalCadastrarPiloto({ onClose, onCadastrado }) {
-  const VAZIO = { nome: '', cpf: '', email: '', telefone: '', nascimento: '', categoria: '', altura: '', peso: '', senha: '' };
+  const VAZIO = { nome: '', cpf: '', email: '', telefone: '', nascimento: '', altura: '', peso: '', senha: '' };
   const [form, setForm] = useState(VAZIO);
   const [erros, setErros] = useState({});
   const [senhaVisivel, setSenhaVisivel] = useState(false);
@@ -1253,7 +1262,6 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'E-mail inválido';
     if (form.telefone.replace(/\D/g, '').length < 10) e.telefone = 'Telefone inválido';
     if (!form.nascimento) e.nascimento = 'Informe a data de nascimento';
-    if (!form.categoria) e.categoria = 'Selecione uma categoria';
     if (!form.altura || form.altura < 100 || form.altura > 250) e.altura = 'Altura inválida (100–250 cm)';
     if (!form.peso || form.peso < 20 || form.peso > 200) e.peso = 'Peso inválido (20–200 kg)';
     if (!form.senha || form.senha.length < 6) e.senha = 'Mínimo 6 caracteres';
@@ -1328,17 +1336,6 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
             </div>
           </div>
 
-          {/* categoria */}
-          <div className="flex flex-col gap-1">
-            <label className="text-on-surface-variant" style={lbl}>CATEGORIA *</label>
-            <select value={form.categoria} onChange={set('categoria')} className="modal-input">
-              <option value="" disabled>Selecione a categoria</option>
-              <option value="open">Open — Iniciantes & Amadores</option>
-              <option value="pro">Pro — Alta Performance</option>
-              <option value="junior">Junior — 7 a 12 anos</option>
-            </select>
-            {erros.categoria && <p className="text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>{erros.categoria}</p>}
-          </div>
 
           {/* altura + peso */}
           <div className="grid grid-cols-2 gap-4">
@@ -1414,8 +1411,8 @@ function Clientes() {
 
   const reload = () => setPilotos(pilotos_listar());
 
-  const catLabel = { open: 'Open', pro: 'Pro', junior: 'Junior' };
-  const catColor = { open: 'border-secondary/40 text-secondary', pro: 'border-primary/40 text-primary', junior: 'border-tertiary/40 text-tertiary' };
+  const catLabel = { open: 'Open', junior: 'Junior' };
+  const catColor = { open: 'border-secondary/40 text-secondary', junior: 'border-tertiary/40 text-tertiary' };
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' };
 
   const filtrados = pilotos.filter(p =>
@@ -1433,9 +1430,8 @@ function Clientes() {
 
   const stats = [
     { label: 'Total', valor: pilotos.length, icon: 'group', color: 'text-on-surface' },
-    { label: 'Open', valor: pilotos.filter(p => p.categoria === 'open').length, icon: 'directions_car', color: 'text-secondary' },
-    { label: 'Pro', valor: pilotos.filter(p => p.categoria === 'pro').length, icon: 'speed', color: 'text-primary' },
-    { label: 'Junior', valor: pilotos.filter(p => p.categoria === 'junior').length, icon: 'child_care', color: 'text-tertiary' },
+    { label: 'Open', valor: pilotos.filter(p => calcCategoria(p.nascimento) === 'open').length, icon: 'directions_car', color: 'text-secondary' },
+    { label: 'Junior', valor: pilotos.filter(p => calcCategoria(p.nascimento) === 'junior').length, icon: 'child_care', color: 'text-tertiary' },
   ];
 
   return (
@@ -1527,8 +1523,8 @@ function Clientes() {
                     </td>
                     <td className="px-5 py-4 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>{p.email}</td>
                     <td className="px-5 py-4">
-                      <span className={`border px-2 py-0.5 ${catColor[p.categoria] || 'border-secondary/40 text-secondary'}`} style={lbl}>
-                        {catLabel[p.categoria] || p.categoria}
+                      <span className={`border px-2 py-0.5 ${catColor[calcCategoria(p.nascimento)] || 'border-secondary/40 text-secondary'}`} style={lbl}>
+                        {catLabel[calcCategoria(p.nascimento)]}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '12px' }}>{p.altura ? `${p.altura}cm` : '--'}</td>
