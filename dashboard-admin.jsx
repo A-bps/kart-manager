@@ -291,6 +291,7 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
       ? pilotsInicial
       : [{ kart: '', nome: '' }, { kart: '', nome: '' }]
   );
+  const pilotosCadastrados = JSON.parse(localStorage.getItem('sp_pilotos') || '[]');
 
   const addPiloto = () => setPilotos(p => [...p, { kart: '', nome: '' }]);
   const removePiloto = (i) => setPilotos(p => p.filter((_, idx) => idx !== i));
@@ -335,12 +336,15 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
             <label className="text-on-surface-variant" style={lbl}>PILOTOS (ordem de largada)</label>
             <button onClick={addPiloto} className="text-secondary transition-colors hover:text-primary" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700' }}>+ Adicionar</button>
           </div>
+          <datalist id="pilotos-cadastrados">
+            {pilotosCadastrados.map(p => <option key={p.id} value={p.nome} />)}
+          </datalist>
           {pilotos.map((p, i) => (
             <div key={i} className="flex items-center gap-2">
               <input type="text" value={p.kart} onChange={e => update(i, 'kart', e.target.value)}
                 placeholder="Kart" className="modal-input" style={{ width: '64px', flexShrink: 0 }} />
               <input type="text" value={p.nome} onChange={e => update(i, 'nome', e.target.value)}
-                placeholder="Nome do piloto" className="modal-input flex-1" />
+                placeholder="Nome do piloto" list="pilotos-cadastrados" className="modal-input flex-1" />
               {pilotos.length > 1 && (
                 <button onClick={() => removePiloto(i)} className="text-error/60 transition-colors hover:text-error">
                   <span className="material-symbols-outlined text-base">remove_circle</span>
