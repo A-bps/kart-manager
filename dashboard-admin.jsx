@@ -475,7 +475,7 @@ function PainelPrincipal({ onTabChange }) {
   const ocupacao = totalKarts > 0 && corrida ? Math.min(100, Math.round((racersNaPista / totalKarts) * 100)) : 0;
 
   const fatDiff = fatOntemVal > 0 ? ((fatHojeVal - fatOntemVal) / fatOntemVal * 100).toFixed(1) : null;
-  const fmtMoney = v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(Math.round(v));
+  const fmtMoney = v => v >= 1000 ? `${(v / 1000).toFixed(1)}` : String(Math.round(v));
 
   const encerrarCorrida = () => setShowEncerrar(true);
 
@@ -1064,7 +1064,7 @@ function Financeiro() {
   const totalHoje = registros.filter(f => f.data === hoje && f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
   const totalGeral = registros.filter(f => f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
   const totalPendente = registros.filter(f => f.status === 'pendente').reduce((s, f) => s + Number(f.valor), 0);
-  const fmtMoney = v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0);
+  const fmtMoney = v => v >= 1000 ? `${(v / 1000).toFixed(1)}` : v.toFixed(0);
   const sorted = [...registros].sort((a, b) => b.id.localeCompare(a.id));
 
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' };
