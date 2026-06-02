@@ -419,16 +419,18 @@ function Agendar({ onConfirmado, onTabChange }) {
                       style={{ fontFamily: 'JetBrains Mono,monospace' }}>{hora}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       {pistasDisponiveis.map(pista => {
-                        const rs    = reservas_do_slot(data, hora, pista.id);
-                        const cheio = rs.length >= pista.capacidade;
-                        const sel   = slotSel?.hora === hora && slotSel?.pistaId === pista.id;
-                        const pct   = Math.round(rs.length / pista.capacidade * 100);
+                        const rs      = reservas_do_slot(data, hora, pista.id);
+                        const cheio   = rs.length >= pista.capacidade;
+                        const passado = data === HOJE && hora <= new Date().toTimeString().slice(0, 5);
+                        const bloq    = cheio || passado;
+                        const sel     = slotSel?.hora === hora && slotSel?.pistaId === pista.id;
+                        const pct     = Math.round(rs.length / pista.capacidade * 100);
                         return (
-                          <button key={pista.id} disabled={cheio}
+                          <button key={pista.id} disabled={bloq}
                             onClick={() => setSlotSel(sel ? null : { hora, pistaId: pista.id, pista })}
                             className={`p-4 border text-left transition-all flex flex-col gap-2 ${
-                              cheio ? 'border-outline-variant/10 opacity-40 cursor-not-allowed bg-surface-dim'
-                              : sel  ? 'border-primary bg-primary/10'
+                              bloq ? 'border-outline-variant/10 opacity-40 cursor-not-allowed bg-surface-dim'
+                              : sel ? 'border-primary bg-primary/10'
                               : 'border-outline-variant/30 bg-surface-container-high hover:border-primary/50'
                             }`}>
                             <div className="flex items-center justify-between">
@@ -439,11 +441,11 @@ function Agendar({ onConfirmado, onTabChange }) {
                             </div>
                             <span className="font-label-caps text-on-surface-variant text-xs">{pista.metros}m</span>
                             <div className="w-full bg-surface-container h-1">
-                              <div className={`h-full ${cheio ? 'bg-error' : pct > 70 ? 'bg-yellow-400' : 'bg-green-400'}`}
-                                style={{ width: `${pct}%` }} />
+                              <div className={`h-full ${passado ? 'bg-outline-variant/40' : cheio ? 'bg-error' : pct > 70 ? 'bg-yellow-400' : 'bg-green-400'}`}
+                                style={{ width: passado ? '100%' : `${pct}%` }} />
                             </div>
-                            <span className={`font-label-caps text-xs ${cheio ? 'text-error' : 'text-on-surface-variant'}`}>
-                              {cheio ? 'LOTADA' : `${pista.capacidade - rs.length} vagas`}
+                            <span className={`font-label-caps text-xs ${passado ? 'text-on-surface-variant/50' : cheio ? 'text-error' : 'text-on-surface-variant'}`}>
+                              {passado ? 'ENCERRADO' : cheio ? 'LOTADA' : `${pista.capacidade - rs.length} vagas`}
                             </span>
                           </button>
                         );
@@ -594,6 +596,28 @@ function Agendar({ onConfirmado, onTabChange }) {
               )}
             </div>
 
+            {(() => {
+              if (!slotSel) return null;
+              const frota = JSON.parse(localStorage.getItem('sp_frota') || '[]');
+              const ativos = frota.filter(k => k.status === 'pronto' || k.status === 'stress').length;
+              const corridas = JSON.parse(localStorage.getItem('sp_corridas_ativas') || '[]');
+              const emUso = corridas.reduce((s, c) => s + (c.posicoes || []).length, 0);
+              const livres = Math.max(0, ativos - emUso);
+              const noPistaHoje = reservas_do_slot(data, slotSel.hora, slotSel.pistaId).length + 1;
+              if (ativos === 0) return (
+                <div className="flex items-center gap-2 border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 mb-4">
+                  <span className="material-symbols-outlined text-yellow-400 text-base">warning</span>
+                  <p className="text-yellow-400" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>Nenhum kart cadastrado. Confirme disponibilidade com o kartódromo.</p>
+                </div>
+              );
+              if (livres < noPistaHoje) return (
+                <div className="flex items-center gap-2 border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 mb-4">
+                  <span className="material-symbols-outlined text-yellow-400 text-base">warning</span>
+                  <p className="text-yellow-400" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>Pode haver karts limitados neste horário. Chegue cedo para garantir o seu.</p>
+                </div>
+              );
+              return null;
+            })()}
             <button disabled={!pode} onClick={confirmar}
               className={`w-full font-headline-sm text-headline-sm py-4 relative overflow-hidden group transition-all ${
                 pode ? 'bg-primary text-on-primary hover:opacity-90 cursor-pointer' : 'bg-surface-container text-on-surface-variant border border-outline-variant/30 cursor-not-allowed'

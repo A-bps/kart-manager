@@ -28,6 +28,11 @@ function frota_setStatus(id, status) {
   frota_salvar(frota_listar().map(k => k.id === id ? { ...k, status } : k));
 }
 function frota_remover(id) { frota_salvar(frota_listar().filter(k => k.id !== id)); }
+function karts_livres() {
+  const ativos = frota_listar().filter(k => k.status === 'pronto' || k.status === 'stress').length;
+  const emUso  = corridas_listar().reduce((s, c) => s + (c.posicoes || []).length, 0);
+  return Math.max(0, ativos - emUso);
+}
 
 function calcCategoria(nascimento) {
   if (!nascimento) return 'open';
@@ -57,10 +62,20 @@ function reservas_add(d) { reservas_salvar([...reservas_listar(), { id: `r${Date
 function reservas_remover(id) { reservas_salvar(reservas_listar().filter(r => r.id !== id)); }
 function reservas_do_horario(horarioId) { return reservas_listar().filter(r => r.horarioId === horarioId); }
 
-// === corrida ativa ===
-function corrida_get() { return JSON.parse(localStorage.getItem('sp_corrida_ativa') || 'null'); }
-function corrida_set(c) { localStorage.setItem('sp_corrida_ativa', JSON.stringify(c)); }
-function corrida_clear() { localStorage.removeItem('sp_corrida_ativa'); }
+// === corridas ativas (múltiplas pistas simultâneas) ===
+function corridas_listar() { return JSON.parse(localStorage.getItem('sp_corridas_ativas') || '[]'); }
+function corridas_salvar(l) { localStorage.setItem('sp_corridas_ativas', JSON.stringify(l)); }
+function corrida_add(c) { corridas_salvar([...corridas_listar(), { id: `c${Date.now()}`, ...c }]); }
+function corrida_remover(id) { corridas_salvar(corridas_listar().filter(c => c.id !== id)); }
+function corrida_pista_ocupada(pistaId) { return corridas_listar().some(c => c.pistaId === pistaId); }
+
+// === notificações de agendamento ===
+function notif_last_check() { return Number(localStorage.getItem('sp_agenda_last_check') || '0'); }
+function notif_marcar_visto() { localStorage.setItem('sp_agenda_last_check', String(Date.now())); }
+function notif_reservas_novas() {
+  const desde = notif_last_check();
+  return reservas_listar().filter(r => r.criadaEm && new Date(r.criadaEm).getTime() > desde);
+}
 
 // === FATURAMENTO ===
 function fat_listar() { return JSON.parse(localStorage.getItem('sp_faturamento') || '[]'); }
@@ -130,7 +145,7 @@ const NAV_ITEMS = [
 ];
 
 // === sidebar ===
-function Sidebar({ activeTab, onTabChange, isOpen, onClose }) {
+function Sidebar({ activeTab, onTabChange, isOpen, onClose, novosAgendamentos }) {
   return (
     <>
       {/* overlay mobile */}
@@ -164,13 +179,20 @@ function Sidebar({ activeTab, onTabChange, isOpen, onClose }) {
         <nav className="flex flex-1 flex-col gap-1 px-2 py-4">
           {NAV_ITEMS.map(item => {
             const active = activeTab === item.id;
+            const badge = item.id === 'agenda' && novosAgendamentos > 0 ? novosAgendamentos : 0;
             return (
               <button key={item.id} onClick={() => onTabChange(item.id)}
                 className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${active
                   ? 'bg-primary-container text-white'
                   : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'}`}>
                 <span className="material-symbols-outlined text-xl">{item.icon}</span>
-                <span style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>{item.label}</span>
+                <span className="flex-1" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>{item.label}</span>
+                {badge > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-error px-1 text-white"
+                    style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -194,14 +216,15 @@ function Sidebar({ activeTab, onTabChange, isOpen, onClose }) {
 }
 
 // === topbar ===
-function TopBar({ onMenuToggle }) {
+function TopBar({ onMenuToggle, novosAgendamentos, onVerAgenda }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [busca, setBusca] = useState('');
+  const novas = notif_reservas_novas();
+  const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em' };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant/20 bg-surface-container-low px-4 lg:px-6">
       <div className="flex flex-1 items-center gap-3">
-        {/* hambúrguer — visível só em mobile */}
         <button
           className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-on-surface-variant transition-colors hover:text-on-surface lg:hidden"
           onClick={onMenuToggle}>
@@ -216,20 +239,44 @@ function TopBar({ onMenuToggle }) {
       </div>
       <div className="flex items-center gap-3 relative">
         <button onClick={() => setNotifOpen(v => !v)}
-          className="flex h-8 w-8 items-center justify-center text-on-surface-variant transition-colors hover:text-on-surface">
+          className="relative flex h-8 w-8 items-center justify-center text-on-surface-variant transition-colors hover:text-on-surface">
           <span className="material-symbols-outlined text-xl">notifications</span>
+          {novosAgendamentos > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-0.5 text-white"
+              style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '9px', fontWeight: '700' }}>
+              {novosAgendamentos > 9 ? '9+' : novosAgendamentos}
+            </span>
+          )}
         </button>
         {notifOpen && (
-          <div className="absolute right-12 top-10 z-50 w-64 border border-outline-variant/30 bg-surface-container shadow-xl"
+          <div className="absolute right-12 top-10 z-50 w-72 border border-outline-variant/30 bg-surface-container shadow-xl"
             onMouseLeave={() => setNotifOpen(false)}>
-            <div className="border-b border-outline-variant/20 px-4 py-3">
-              <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.08em', color: 'var(--tw-text-opacity)' }}
-                className="text-on-surface-variant uppercase">Notificações</p>
+            <div className="flex items-center justify-between border-b border-outline-variant/20 px-4 py-3">
+              <p className="text-on-surface-variant uppercase" style={lbl}>Novos Agendamentos</p>
+              {novas.length > 0 && (
+                <button onClick={() => { onVerAgenda(); setNotifOpen(false); }}
+                  className="text-secondary hover:text-primary transition-colors" style={{ ...lbl, letterSpacing: '0.04em' }}>
+                  VER AGENDA
+                </button>
+              )}
             </div>
-            <div className="flex flex-col items-center gap-2 px-4 py-6 text-on-surface-variant">
-              <span className="material-symbols-outlined text-3xl">notifications_off</span>
-              <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>Nenhuma notificação nova</p>
-            </div>
+            {novas.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 px-4 py-6 text-on-surface-variant">
+                <span className="material-symbols-outlined text-3xl">notifications_off</span>
+                <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>Nenhum agendamento novo</p>
+              </div>
+            ) : (
+              <div className="flex flex-col divide-y divide-outline-variant/10 max-h-64 overflow-y-auto">
+                {novas.slice(0, 10).map(r => (
+                  <div key={r.id} className="flex flex-col gap-0.5 px-4 py-3">
+                    <p className="text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px', fontWeight: '600' }}>{r.nome}</p>
+                    <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>
+                      {new Date(r.data + 'T12:00:00').toLocaleDateString('pt-BR')} · {r.hora} · {PISTAS.find(p => p.id === r.pistaId)?.nome || r.pistaId}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-container">
@@ -292,9 +339,11 @@ function BriefingSegurancaModal({ onClose }) {
 }
 
 // === modal iniciar corrida ===
-function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
+function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial, pistaIdInicial }) {
   const [numero, setNumero] = useState('');
   const [duracao, setDuracao] = useState('10');
+  const [pistaId, setPistaId] = useState(pistaIdInicial || '');
+  const [erro, setErro] = useState('');
   const [pilotos, setPilotos] = useState(
     pilotsInicial && pilotsInicial.length > 0
       ? pilotsInicial
@@ -302,6 +351,13 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
   );
   const pilotosCadastrados = JSON.parse(localStorage.getItem('sp_pilotos') || '[]');
   const kartsCadastrados = JSON.parse(localStorage.getItem('sp_frota') || '[]');
+  const livres = karts_livres();
+  const pilotosValidos = pilotos.filter(p => p.nome.trim()).length;
+  const aviso = livres < pilotosValidos
+    ? livres === 0
+      ? 'Nenhum kart disponível no momento.'
+      : `Apenas ${livres} kart${livres !== 1 ? 's' : ''} livre${livres !== 1 ? 's' : ''} para ${pilotosValidos} pilotos.`
+    : null;
 
   const addPiloto = () => setPilotos(p => [...p, { kart: '', nome: '' }]);
   const removePiloto = (i) => setPilotos(p => p.filter((_, idx) => idx !== i));
@@ -309,9 +365,13 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
 
   const iniciar = () => {
     const posicoes = pilotos.filter(p => p.nome.trim());
-    if (!numero || !duracao || posicoes.length === 0) return;
-    corrida_set({
+    if (!pistaId) { setErro('Selecione a pista'); return; }
+    if (!numero || !duracao || posicoes.length === 0) { setErro('Preencha todos os campos'); return; }
+    if (corrida_pista_ocupada(pistaId)) { setErro('Esta pista já tem uma corrida em andamento'); return; }
+    corrida_add({
       numero: Number(numero),
+      pistaId,
+      pistaNome: PISTAS.find(p => p.id === pistaId)?.nome || pistaId,
       iniciadaEm: Date.now(),
       duracaoSec: Number(duracao) * 60,
       posicoes: posicoes.map(p => ({ kart: p.kart || '?', nome: p.nome.trim() })),
@@ -330,6 +390,18 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
           <button onClick={onClose} className="text-on-surface-variant hover:text-on-surface">
             <span className="material-symbols-outlined">close</span>
           </button>
+        </div>
+        {/* pista */}
+        <div className="flex flex-col gap-1">
+          <label className="text-on-surface-variant" style={lbl}>PISTA</label>
+          <select value={pistaId} onChange={e => { setPistaId(e.target.value); setErro(''); }} className="modal-input"
+            disabled={!!pistaIdInicial}>
+            <option value="" disabled>Selecione a pista</option>
+            {PISTAS.map(p => {
+              const ocupada = corrida_pista_ocupada(p.id);
+              return <option key={p.id} value={p.id} disabled={ocupada}>{p.nome}{ocupada ? ' — em uso' : ''}</option>;
+            })}
+          </select>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
@@ -366,6 +438,13 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
             </div>
           ))}
         </div>
+        {aviso && (
+          <div className="flex items-center gap-2 border border-yellow-500/40 bg-yellow-500/10 px-3 py-2">
+            <span className="material-symbols-outlined text-yellow-400 text-base flex-shrink-0">warning</span>
+            <p className="text-yellow-400" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px' }}>{aviso}</p>
+          </div>
+        )}
+        {erro && <p className="text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px' }}>{erro}</p>}
         <button onClick={iniciar}
           className="flex items-center justify-center gap-2 bg-primary-container py-3 text-white transition-opacity hover:opacity-90"
           style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.1em' }}>
@@ -387,7 +466,7 @@ function EncerrarCorridaModal({ corrida, onClose, onEncerrada }) {
 
   const encerrar = () => {
     historico_add({ ...corrida, posicoes });
-    corrida_clear();
+    corrida_remover(corrida.id);
     onEncerrada();
   };
 
@@ -446,12 +525,12 @@ function EncerrarCorridaModal({ corrida, onClose, onEncerrada }) {
 // === painel principal ===
 function PainelPrincipal({ onTabChange }) {
   const [frota, setFrota] = useState(frota_listar);
-  const [corrida, setCorrida] = useState(corrida_get);
+  const [corridas, setCorridas] = useState(corridas_listar);
   const [fatHojeVal, setFatHojeVal] = useState(fat_hoje);
   const [fatOntemVal, setFatOntemVal] = useState(fat_ontem);
   const [proximasHoje, setProximasHoje] = useState([]);
   const [showIniciar, setShowIniciar] = useState(false);
-  const [showEncerrar, setShowEncerrar] = useState(false);
+  const [corridaParaEncerrar, setCorridaParaEncerrar] = useState(null);
   const [showBriefing, setShowBriefing] = useState(false);
   const [, setTick] = useState(0);
 
@@ -462,7 +541,7 @@ function PainelPrincipal({ onTabChange }) {
 
   const reload = () => {
     setFrota(frota_listar());
-    setCorrida(corrida_get());
+    setCorridas(corridas_listar());
     setFatHojeVal(fat_hoje());
     setFatOntemVal(fat_ontem());
     const hs = horarios_do_dia(hoje).map(h => ({
@@ -480,21 +559,19 @@ function PainelPrincipal({ onTabChange }) {
   const manutencao = frota.filter(k => k.status === 'manutencao').length;
   const kartsAtivos = prontos + stress;
 
-  let tempoRestanteSec = 0;
-  if (corrida) {
-    const elapsed = Math.floor((Date.now() - corrida.iniciadaEm) / 1000);
-    tempoRestanteSec = Math.max(0, corrida.duracaoSec - elapsed);
-  }
-  const min = String(Math.floor(tempoRestanteSec / 60)).padStart(2, '0');
-  const sec = String(tempoRestanteSec % 60).padStart(2, '0');
-
-  const racersNaPista = corrida ? (corrida.posicoes || []).length : 0;
-  const ocupacao = totalKarts > 0 && corrida ? Math.min(100, Math.round((racersNaPista / totalKarts) * 100)) : 0;
+  const totalRacers = corridas.reduce((s, c) => s + (c.posicoes || []).length, 0);
+  const ocupacao = totalKarts > 0 && totalRacers > 0 ? Math.min(100, Math.round((totalRacers / totalKarts) * 100)) : 0;
 
   const fatDiff = fatOntemVal > 0 ? ((fatHojeVal - fatOntemVal) / fatOntemVal * 100).toFixed(1) : null;
+
+  const calcTempo = (c) => {
+    const elapsed = Math.floor((Date.now() - c.iniciadaEm) / 1000);
+    const restante = Math.max(0, c.duracaoSec - elapsed);
+    return `${String(Math.floor(restante / 60)).padStart(2, '0')}:${String(restante % 60).padStart(2, '0')}`;
+  };
   const fmtMoney = v => v >= 1000 ? `${(v / 1000).toFixed(1)}` : String(Math.round(v));
 
-  const encerrarCorrida = () => setShowEncerrar(true);
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -592,57 +669,60 @@ function PainelPrincipal({ onTabChange }) {
 
       {/* status + próximas */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        {/* status ao vivo */}
+        {/* status ao vivo — múltiplas pistas */}
         <div className="flex flex-col border border-outline-variant/20 bg-surface-container lg:col-span-3">
           <div className="flex items-center justify-between border-b border-outline-variant/20 px-5 py-4">
             <div className="flex items-center gap-2">
-              {corrida && <span className="h-2 w-2 animate-pulse rounded-full bg-primary-container"></span>}
-              <span className="font-bold italic uppercase text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '14px' }}>Status da Pista ao Vivo</span>
+              {corridas.length > 0 && <span className="h-2 w-2 animate-pulse rounded-full bg-primary-container"></span>}
+              <span className="font-bold italic uppercase text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '14px' }}>Status das Pistas ao Vivo</span>
             </div>
-            {corrida
-              ? <span className="border border-primary/40 bg-primary-container/20 px-2 py-1 text-primary" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>CORRIDA {corrida.numero} EM ANDAMENTO</span>
-              : <span className="border border-outline-variant/20 px-2 py-1 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>SEM CORRIDA ATIVA</span>
-            }
-          </div>
-          {corrida ? (
-            <div className="flex flex-col gap-4 p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>LÍDER ATUAL</p>
-                  <p className="mt-0.5 font-bold text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>
-                    {corrida.posicoes[0] ? `#${corrida.posicoes[0].kart} - ${corrida.posicoes[0].nome}` : '--'}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>TEMPO RESTANTE</p>
-                  <p className="mt-0.5 text-primary" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '28px', fontWeight: '500', lineHeight: '1' }}>{min}:{sec}</p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                {corrida.posicoes.map((p, i) => (
-                  <div key={i} className="flex items-center gap-3 bg-surface-container-high px-4 py-3">
-                    <span className="w-6 text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '13px' }}>P{i + 1}</span>
-                    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-surface-container-highest text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>{p.kart}</span>
-                    <span className="flex-1 text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>{p.nome}</span>
-                    {i === 0 && <span className="text-green-400" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '12px' }}>Líder</span>}
-                  </div>
-                ))}
-              </div>
-              <button onClick={encerrarCorrida}
-                className="flex items-center justify-center gap-2 border border-error/40 py-2 text-error transition-colors hover:bg-error/10"
-                style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' }}>
-                <span className="material-symbols-outlined text-base">stop_circle</span>ENCERRAR CORRIDA
+            <div className="flex items-center gap-2">
+              {corridas.length > 0 && <span className="border border-primary/40 bg-primary-container/20 px-2 py-1 text-primary" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>{corridas.length} EM ANDAMENTO</span>}
+              <button onClick={() => setShowIniciar(true)}
+                className="flex items-center gap-1 bg-primary-container px-3 py-1.5 text-white transition-opacity hover:opacity-90"
+                style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>
+                <span className="material-symbols-outlined text-sm">play_circle</span>INICIAR
               </button>
             </div>
-          ) : (
+          </div>
+          {corridas.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-4 p-10 text-on-surface-variant">
               <span className="material-symbols-outlined text-5xl">flag</span>
               <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>Nenhuma corrida em andamento</p>
-              <button onClick={() => setShowIniciar(true)}
-                className="flex items-center gap-2 bg-primary-container px-5 py-2.5 text-white transition-opacity hover:opacity-90"
-                style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.1em' }}>
-                <span className="material-symbols-outlined text-base">play_circle</span>INICIAR CORRIDA
-              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col divide-y divide-outline-variant/10">
+              {corridas.map(c => (
+                <div key={c.id} className="flex flex-col gap-3 p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>{c.pistaNome?.toUpperCase() || c.pistaId?.toUpperCase()} · CORRIDA #{c.numero}</p>
+                      <p className="mt-0.5 font-bold text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>
+                        {c.posicoes[0] ? `Líder: #${c.posicoes[0].kart} ${c.posicoes[0].nome}` : '--'}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>RESTANTE</p>
+                      <p className="mt-0.5 text-primary" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '24px', fontWeight: '500', lineHeight: '1' }}>{calcTempo(c)}</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {c.posicoes.map((p, i) => (
+                      <div key={i} className="flex items-center gap-3 bg-surface-container-high px-3 py-2">
+                        <span className="w-6 text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '12px' }}>P{i + 1}</span>
+                        <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-surface-container-highest text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '10px' }}>{p.kart}</span>
+                        <span className="flex-1 text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>{p.nome}</span>
+                        {i === 0 && <span className="text-green-400" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>Líder</span>}
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setCorridaParaEncerrar(c)}
+                    className="flex items-center justify-center gap-2 border border-error/40 py-2 text-error transition-colors hover:bg-error/10"
+                    style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' }}>
+                    <span className="material-symbols-outlined text-base">stop_circle</span>ENCERRAR {c.pistaNome?.toUpperCase()}
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -704,14 +784,56 @@ function PainelPrincipal({ onTabChange }) {
         </div>
       </div>
 
+      {/* agendamentos de hoje por horário */}
+      {(() => {
+        const horarios = getHorariosDia(hoje);
+        const slots = horarios.flatMap(hora =>
+          PISTAS.map(pista => {
+            const rs = reservas_do_slot(hoje, hora, pista.id);
+            return rs.length > 0 ? { hora, pista, pilotos: rs } : null;
+          }).filter(Boolean)
+        );
+        if (slots.length === 0) return null;
+        return (
+          <div className="flex flex-col border border-outline-variant/20 bg-surface-container">
+            <div className="flex items-center justify-between border-b border-outline-variant/20 px-5 py-4">
+              <span className="font-bold italic uppercase text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '14px' }}>Agendamentos de Hoje</span>
+              <button onClick={() => onTabChange('agenda')} className="text-secondary transition-colors hover:text-primary"
+                style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700' }}>Ver Agenda</button>
+            </div>
+            <div className="flex flex-col divide-y divide-outline-variant/10">
+              {slots.map(({ hora, pista, pilotos }) => (
+                <div key={`${hora}-${pista.id}`} className="flex flex-col gap-2 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-primary" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '13px', fontWeight: '700' }}>{hora}</span>
+                    <span className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em' }}>{pista.nome.toUpperCase()}</span>
+                    <span className="ml-auto border border-secondary/30 px-2 py-0.5 text-secondary" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>
+                      {pilotos.length} piloto{pilotos.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {pilotos.map(r => (
+                      <span key={r.id} className="border border-outline-variant/30 bg-surface-container-high px-2 py-1 text-on-surface"
+                        style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px' }}>
+                        {r.nome}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {showIniciar && (
         <IniciarCorridaModal onClose={() => setShowIniciar(false)} onIniciada={() => { reload(); setShowIniciar(false); }} />
       )}
-      {showEncerrar && corrida && (
+      {corridaParaEncerrar && (
         <EncerrarCorridaModal
-          corrida={corrida}
-          onClose={() => setShowEncerrar(false)}
-          onEncerrada={() => { setShowEncerrar(false); reload(); }}
+          corrida={corridaParaEncerrar}
+          onClose={() => setCorridaParaEncerrar(null)}
+          onEncerrada={() => { setCorridaParaEncerrar(null); reload(); }}
         />
       )}
       {showBriefing && <BriefingSegurancaModal onClose={() => setShowBriefing(false)} />}
@@ -921,7 +1043,7 @@ function Agenda() {
                         {/* iniciar corrida */}
                         {rs.length > 0 && (
                           <button
-                            onClick={() => setSlotParaIniciar({ pilotos: rs.map(r => ({ nome: r.nome, kart: '' })) })}
+                            onClick={() => setSlotParaIniciar({ pilotos: rs.map(r => ({ nome: r.nome, kart: '' })), pistaId: pista.id })}
                             className="flex items-center justify-center gap-2 border border-primary/40 bg-primary-container/10 py-2 text-primary transition-colors hover:bg-primary-container/20"
                             style={lbl}>
                             <span className="material-symbols-outlined text-sm">play_circle</span>INICIAR CORRIDA
@@ -940,6 +1062,7 @@ function Agenda() {
       {slotParaIniciar && (
         <IniciarCorridaModal
           pilotos={slotParaIniciar.pilotos}
+          pistaIdInicial={slotParaIniciar.pistaId}
           onClose={() => setSlotParaIniciar(null)}
           onIniciada={() => setSlotParaIniciar(null)}
         />
@@ -1612,14 +1735,14 @@ function Classificacao() {
         </div>
       ) : (
         <div className="border border-outline-variant/20 bg-surface-container overflow-hidden">
-          <div className="grid grid-cols-[3rem_1fr_auto_auto_auto_auto] gap-4 px-6 py-3 bg-surface-container-high border-b border-outline-variant/20">
-            {['#', 'PILOTO', 'VITÓRIAS', 'MELHOR VOLTA', 'CORRIDAS', 'PTS'].map(h => (
-              <span key={h} className="text-on-surface-variant" style={lbl}>{h}</span>
+          <div className="grid grid-cols-[3rem_1fr_6rem_8rem_6rem_5rem] gap-4 px-6 py-3 bg-surface-container-high border-b border-outline-variant/20">
+            {[['#',''], ['PILOTO',''], ['VITÓRIAS','text-right'], ['MELHOR VOLTA','text-right'], ['CORRIDAS','text-right'], ['PTS','text-right']].map(([h, align]) => (
+              <span key={h} className={`text-on-surface-variant ${align}`} style={lbl}>{h}</span>
             ))}
           </div>
           {ranking.map((p, i) => (
             <div key={p.nome}
-              className={`grid grid-cols-[3rem_1fr_auto_auto_auto_auto] gap-4 items-center px-6 py-4 border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high ${i === 0 ? 'bg-primary-container/5' : ''}`}>
+              className={`grid grid-cols-[3rem_1fr_6rem_8rem_6rem_5rem] gap-4 items-center px-6 py-4 border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high ${i === 0 ? 'bg-primary-container/5' : ''}`}>
               <div className="flex items-center">
                 {i < 3
                   ? <span className={`material-symbols-outlined text-xl ${medalhas[i]}`}>emoji_events</span>
@@ -1647,8 +1770,10 @@ function Classificacao() {
 function DashboardAdmin() {
   const [activeTab, setActiveTab] = useState('painel');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [novosAgendamentos, setNovosAgendamentos] = useState(() => notif_reservas_novas().length);
 
   const handleTabChange = (tab) => {
+    if (tab === 'agenda') { notif_marcar_visto(); setNovosAgendamentos(0); }
     setActiveTab(tab);
     setSidebarOpen(false);
   };
@@ -1672,9 +1797,14 @@ function DashboardAdmin() {
         onTabChange={handleTabChange}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        novosAgendamentos={novosAgendamentos}
       />
       <div className="flex flex-1 flex-col lg:ml-56">
-        <TopBar onMenuToggle={() => setSidebarOpen(o => !o)} />
+        <TopBar
+          onMenuToggle={() => setSidebarOpen(o => !o)}
+          novosAgendamentos={novosAgendamentos}
+          onVerAgenda={() => handleTabChange('agenda')}
+        />
         <main className="flex-1 overflow-auto p-4 lg:p-6">{renderContent()}</main>
       </div>
     </div>
