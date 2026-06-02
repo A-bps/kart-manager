@@ -23,10 +23,19 @@ function pilotos_atualizar(id, dados) {
 
 // === agenda fixa ===
 const PISTAS = [
-  { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550,  precoPorMin: 6,  precoPorVolta: 4  },
-  { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800,  precoPorMin: 8,  precoPorVolta: 6  },
-  { id: 'pista3', nome: 'Pista 3', capacidade: 30, metros: 1200, precoPorMin: 10, precoPorVolta: 8  },
+  { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550,  precoPorMin: 6,  precoPorVolta: 4,  categoria: 'junior' },
+  { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800,  precoPorMin: 8,  precoPorVolta: 6,  categoria: 'open'   },
+  { id: 'pista3', nome: 'Pista 3', capacidade: 30, metros: 1200, precoPorMin: 10, precoPorVolta: 8,  categoria: 'open'   },
 ];
+
+function calcCategoria(nascimento) {
+  if (!nascimento) return 'open';
+  const hoje = new Date();
+  const nasc = new Date(nascimento + 'T12:00:00');
+  let idade = hoje.getFullYear() - nasc.getFullYear();
+  if (hoje < new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate())) idade--;
+  return idade <= 13 ? 'junior' : 'open';
+}
 const HORARIOS_SEMANA = ['08:00','10:00','12:00','14:00','16:00','18:00'];
 const HORARIOS_FDS    = ['08:00','10:00','12:00','14:00','16:00','18:00','20:00','22:00'];
 const QTD_TEMPO  = [10, 15, 20, 30];
@@ -84,7 +93,7 @@ function filhos_remover(pilotoId, filhoId) {
 
 // --- navbar ---
 function DashboardNav({ activeTab, onTabChange }) {
-  const catLabel = { open: 'OPEN', pro: 'PRO', junior: 'JUNIOR' };
+  const catLabel = { open: 'OPEN', junior: 'JUNIOR' };
   const tabs = [
     { id: 'agendar',   label: 'Agendar',         icon: 'add_circle'  },
     { id: 'minhas',    label: 'Minhas Corridas',  icon: 'event'       },
@@ -111,7 +120,7 @@ function DashboardNav({ activeTab, onTabChange }) {
           <div className="hidden sm:flex flex-col items-end">
             <span className="font-body-sm text-body-sm text-on-surface leading-tight">{usuario.nome}</span>
             <span className="font-label-caps text-xs tracking-wider text-primary">
-              PILOTO · {catLabel[usuario.categoria] || usuario.categoria?.toUpperCase()}
+              PILOTO · {catLabel[calcCategoria(usuario.nascimento)]}
             </span>
           </div>
           <button onClick={() => { auth_clearSession(); window.location.href = 'index.html'; }}
@@ -273,6 +282,8 @@ function Agendar({ onConfirmado, onTabChange }) {
   const horarios = data ? getHorariosDia(data) : [];
   const qtdOpts  = formato === 'tempo' ? QTD_TEMPO : QTD_VOLTAS;
   const preco    = slotSel ? calcPreco(slotSel.pista, formato, qtd) : 0;
+  const nascPiloto = dependenteSel ? dependenteSel.nascimento : usuario.nascimento;
+  const pistasDisponiveis = PISTAS.filter(p => p.categoria === calcCategoria(nascPiloto));
   const pode     = data && slotSel && qtd && termos && pilotoNome.trim() && formaPagamento;
 
   const mudarFormato = (f) => { setFormato(f); setQtd(null); };
@@ -407,7 +418,7 @@ function Agendar({ onConfirmado, onTabChange }) {
                     <p className="font-label-caps text-on-surface-variant text-xs mb-2"
                       style={{ fontFamily: 'JetBrains Mono,monospace' }}>{hora}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {PISTAS.map(pista => {
+                      {pistasDisponiveis.map(pista => {
                         const rs    = reservas_do_slot(data, hora, pista.id);
                         const cheio = rs.length >= pista.capacidade;
                         const sel   = slotSel?.hora === hora && slotSel?.pistaId === pista.id;
@@ -811,7 +822,7 @@ function Perfil() {
   const [salvo, setSalvo] = useState(false);
   const [filhos, setFilhos] = useState(() => filhos_listar(usuario.id));
   const [showAddFilho, setShowAddFilho] = useState(false);
-  const [formFilho, setFormFilho] = useState({ nome: '', nascimento: '', categoria: '', peso: '', altura: '' });
+  const [formFilho, setFormFilho] = useState({ nome: '', nascimento: '', peso: '', altura: '' });
   const [pendDelFilho, setPendDelFilho] = useState(null);
 
   const reloadFilhos = () => setFilhos(filhos_listar(usuario.id));
@@ -834,9 +845,9 @@ function Perfil() {
   };
 
   const salvarFilho = () => {
-    if (!formFilho.nome.trim() || !formFilho.nascimento || !formFilho.categoria) return;
+    if (!formFilho.nome.trim() || !formFilho.nascimento) return;
     filhos_add(usuario.id, formFilho);
-    setFormFilho({ nome: '', nascimento: '', categoria: '', peso: '', altura: '' });
+    setFormFilho({ nome: '', nascimento: '', peso: '', altura: '' });
     setShowAddFilho(false);
     reloadFilhos();
   };
@@ -960,14 +971,6 @@ function Perfil() {
                 <input type="date" value={formFilho.nascimento} onChange={e => setFormFilho(f => ({ ...f, nascimento: e.target.value }))} className={inputClass} style={{ colorScheme: 'dark' }} />
               </div>
               <div>
-                <label className={labelClass}>CATEGORIA *</label>
-                <select value={formFilho.categoria} onChange={e => setFormFilho(f => ({ ...f, categoria: e.target.value }))} className={inputClass}>
-                  <option value="" disabled>Selecione</option>
-                  <option value="junior">Junior — 7 a 12 anos</option>
-                  <option value="open">Open — Amadores</option>
-                </select>
-              </div>
-              <div>
                 <label className={labelClass}>ALTURA (cm)</label>
                 <input type="number" value={formFilho.altura} onChange={e => setFormFilho(f => ({ ...f, altura: e.target.value }))} className={inputClass} placeholder="Ex: 130" />
               </div>
@@ -999,7 +1002,7 @@ function Perfil() {
                   <p className="font-body-md text-on-surface">{f.nome}</p>
                   <div className="flex flex-wrap gap-3 mt-1">
                     {f.nascimento && <span className="font-label-caps text-on-surface-variant text-xs">Nasc. {new Date(f.nascimento + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
-                    {f.categoria && <span className="font-label-caps text-secondary text-xs border border-secondary/30 px-2 py-0.5">{f.categoria.toUpperCase()}</span>}
+                    {f.nascimento && <span className="font-label-caps text-secondary text-xs border border-secondary/30 px-2 py-0.5">{calcCategoria(f.nascimento).toUpperCase()}</span>}
                     {f.altura && <span className="font-label-caps text-on-surface-variant text-xs">{f.altura} cm</span>}
                     {f.peso && <span className="font-label-caps text-on-surface-variant text-xs">{f.peso} kg</span>}
                   </div>

@@ -47,6 +47,14 @@ function auth_login(email, senha) {
   if (email === ADMIN_USER.email && senha === ADMIN_USER.senha) return ADMIN_USER;
   return auth_listarPilotos().find(p => p.email === email && p.senha === senha) || null;
 }
+function calcCategoria(nascimento) {
+  if (!nascimento) return 'open';
+  const hoje = new Date();
+  const nasc = new Date(nascimento + 'T12:00:00');
+  let idade = hoje.getFullYear() - nasc.getFullYear();
+  if (hoje < new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate())) idade--;
+  return idade <= 13 ? 'junior' : 'open';
+}
 function auth_getSession() {
   try { return JSON.parse(sessionStorage.getItem('sp_usuario') || 'null'); } catch { return null; }
 }
@@ -135,7 +143,7 @@ function ModalLogin({ onClose, onLogin, onOpenCadastro }) {
 
 // navbar do dashboard — mantida aqui apenas pra não quebrar referências antigas
 function DashboardNav({ usuario, onLogout }) {
-  const catLabel = { open: 'OPEN', pro: 'PRO', junior: 'JUNIOR' };
+  const catLabel = { open: 'OPEN', junior: 'JUNIOR' };
   return (
     <nav className="sticky top-0 z-50 border-b border-outline-variant/30 bg-surface/95 backdrop-blur-md">
       <div className="flex justify-between items-center w-full px-margin-edge py-4 max-w-container-max mx-auto">
@@ -147,7 +155,7 @@ function DashboardNav({ usuario, onLogout }) {
           <div className="hidden sm:flex flex-col items-end">
             <span className="font-body-sm text-body-sm text-on-surface leading-tight">{usuario.nome}</span>
             <span className={`font-label-caps text-xs tracking-wider ${usuario.role === 'admin' ? 'text-secondary' : 'text-primary'}`}>
-              {usuario.role === 'admin' ? 'ADMINISTRADOR' : `PILOTO · ${catLabel[usuario.categoria] || ''}`}
+              {usuario.role === 'admin' ? 'ADMINISTRADOR' : `PILOTO · ${catLabel[calcCategoria(usuario.nascimento)] || ''}`}
             </span>
           </div>
           <button onClick={onLogout}
@@ -163,13 +171,13 @@ function DashboardNav({ usuario, onLogout }) {
 
 // dashboard piloto
 function DashboardPiloto({ usuario, onLogout }) {
-  const catLabel = { open: 'Open', pro: 'Pro', junior: 'Junior' };
-  const catColor = { open: 'border-secondary text-secondary', pro: 'border-primary text-primary', junior: 'border-tertiary text-tertiary' };
+  const catLabel = { open: 'Open', junior: 'Junior' };
+  const catColor = { open: 'border-secondary text-secondary', junior: 'border-tertiary text-tertiary' };
 
   const stats = [
     { icon: 'flag', label: 'Corridas', valor: '0', sub: 'Nenhuma ainda' },
     { icon: 'timer', label: 'Melhor Volta', valor: '--:--', sub: 'Faça sua 1ª sessão' },
-    { icon: 'emoji_events', label: 'Pontos', valor: '0', sub: 'Ranking ' + (catLabel[usuario.categoria] || '') },
+    { icon: 'emoji_events', label: 'Pontos', valor: '0', sub: 'Ranking ' + (catLabel[calcCategoria(usuario.nascimento)] || '') },
     { icon: 'leaderboard', label: 'Posição', valor: '--', sub: 'No ranking global' },
   ];
 
@@ -196,8 +204,8 @@ function DashboardPiloto({ usuario, onLogout }) {
             {usuario.nome.split(' ')[0]}{' '}
             <span className="text-primary-container">{usuario.nome.split(' ').slice(1).join(' ')}</span>
           </h1>
-          <span className={`font-label-caps text-label-caps text-xs px-3 py-1 border skew-x-m10 inline-block ${catColor[usuario.categoria] || 'border-secondary text-secondary'}`}>
-            <span className="inline-block skew-x-10">CATEGORIA {(catLabel[usuario.categoria] || '').toUpperCase()}</span>
+          <span className={`font-label-caps text-label-caps text-xs px-3 py-1 border skew-x-m10 inline-block ${catColor[calcCategoria(usuario.nascimento)] || 'border-secondary text-secondary'}`}>
+            <span className="inline-block skew-x-10">CATEGORIA {(catLabel[calcCategoria(usuario.nascimento)] || '').toUpperCase()}</span>
           </span>
         </div>
       </section>
@@ -277,18 +285,16 @@ function DashboardAdmin({ usuario, onLogout }) {
 
   const reload = () => setPilotos(auth_listarPilotos());
 
-  const catLabel = { open: 'Open', pro: 'Pro', junior: 'Junior' };
+  const catLabel = { open: 'Open', junior: 'Junior' };
   const catColor = {
     open: 'border-secondary/40 text-secondary',
-    pro: 'border-primary/40 text-primary',
     junior: 'border-tertiary/40 text-tertiary',
   };
 
   const stats = [
     { label: 'Total', valor: pilotos.length, icon: 'group', color: 'text-on-surface' },
-    { label: 'Open', valor: pilotos.filter(p => p.categoria === 'open').length, icon: 'directions_car', color: 'text-secondary' },
-    { label: 'Pro', valor: pilotos.filter(p => p.categoria === 'pro').length, icon: 'speed', color: 'text-primary' },
-    { label: 'Junior', valor: pilotos.filter(p => p.categoria === 'junior').length, icon: 'child_care', color: 'text-tertiary' },
+    { label: 'Open', valor: pilotos.filter(p => calcCategoria(p.nascimento) === 'open').length, icon: 'directions_car', color: 'text-secondary' },
+    { label: 'Junior', valor: pilotos.filter(p => calcCategoria(p.nascimento) === 'junior').length, icon: 'child_care', color: 'text-tertiary' },
   ];
 
   const filtrados = pilotos.filter(p =>
@@ -361,8 +367,8 @@ function DashboardAdmin({ usuario, onLogout }) {
                       </td>
                       <td className="px-5 py-4 font-body-sm text-body-sm text-on-surface-variant">{p.email}</td>
                       <td className="px-5 py-4">
-                        <span className={`font-label-caps text-xs px-2 py-0.5 border ${catColor[p.categoria] || 'border-secondary/40 text-secondary'}`}>
-                          {catLabel[p.categoria] || p.categoria}
+                        <span className={`font-label-caps text-xs px-2 py-0.5 border ${catColor[calcCategoria(p.nascimento)] || 'border-secondary/40 text-secondary'}`}>
+                          {catLabel[calcCategoria(p.nascimento)]}
                         </span>
                       </td>
                       <td className="px-5 py-4 font-label-data text-label-data text-on-surface-variant text-sm">{p.altura ? `${p.altura}cm` : '--'}</td>
@@ -405,7 +411,7 @@ function DashboardAdmin({ usuario, onLogout }) {
 function CadastroPiloto({ onClose, onSuccess }) {
   const [form, setForm] = useState({
     nome: '', cpf: '', email: '', telefone: '',
-    nascimento: '', categoria: '', altura: '', peso: '',
+    nascimento: '', altura: '', peso: '',
     senha: '', confirmarSenha: '',
   });
   const [errors, setErrors] = useState({});
@@ -456,8 +462,6 @@ function CadastroPiloto({ onClose, onSuccess }) {
       e.telefone = 'Telefone inválido';
     if (!form.nascimento)
       e.nascimento = 'Informe a data de nascimento';
-    if (!form.categoria)
-      e.categoria = 'Selecione uma categoria';
     if (!form.altura || form.altura < 100 || form.altura > 250)
       e.altura = 'Altura inválida (100–250 cm)';
     if (!form.peso || form.peso < 20 || form.peso > 200)
@@ -609,17 +613,6 @@ function CadastroPiloto({ onClose, onSuccess }) {
             </div>
           </div>
 
-          {/* categoria */}
-          <div>
-            <label className="modal-label">Categoria *</label>
-            <select className="modal-input" value={form.categoria} onChange={set('categoria')}>
-              <option value="" disabled>Selecione sua categoria</option>
-              <option value="open">Open — Iniciantes & Amadores</option>
-              <option value="pro">Pro — Alta Performance</option>
-              <option value="junior">Junior — 7 a 12 anos</option>
-            </select>
-            {errors.categoria && <p className="text-xs text-error mt-1">{errors.categoria}</p>}
-          </div>
 
           {/* altura + peso */}
           <div className="modal-row">
