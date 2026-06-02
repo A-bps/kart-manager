@@ -242,9 +242,41 @@
     flex-direction: column;
   }
 
-  #hero-section .flex-wrap button {
+  #hero-section .flex-wrap button,
+  #hero-section .flex-wrap a {
     width: 100%;
     text-align: center;
+    display: block;
+  }
+
+  /* Reduz texto hero para caber na tela */
+  .text-display-hero {
+    font-size: 40px !important;
+    line-height: 1.15 !important;
+  }
+
+  .text-headline-lg {
+    font-size: 27px !important;
+  }
+
+  /* Reduz padding vertical excessivo das seções */
+  .py-24 {
+    padding-top: 3.5rem !important;
+    padding-bottom: 3.5rem !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .text-display-hero {
+    font-size: 32px !important;
+  }
+
+  .text-headline-lg {
+    font-size: 22px !important;
+  }
+
+  .text-headline-md {
+    font-size: 19px !important;
   }
 }
 
