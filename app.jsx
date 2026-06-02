@@ -1648,7 +1648,7 @@ function Footer() {
             © Copyright Speed Park. Todos os direitos reservados.
           </p>
           <p className="font-body-sm text-body-sm text-on-surface-variant/40">
-            Desenvolvido por Ritmo Propaganda.
+            Desenvolvido por Arthur Bathaus - BPSTech.
           </p>
         </div>
       </div>
