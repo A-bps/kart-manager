@@ -716,6 +716,58 @@ function CadastroPiloto({ onClose, onSuccess }) {
   );
 }
 
+// MODAL RESERVAR
+function ModalReservar({ onClose, onLogin, onCadastro }) {
+  const overlayRef = useRef(null);
+
+  useEffect(() => {
+    document.body.classList.add('modal-open');
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.classList.remove('modal-open'); window.removeEventListener('keydown', onKey); };
+  }, [onClose]);
+
+  return (
+    <div className="modal-overlay" ref={overlayRef} onClick={e => e.target === overlayRef.current && onClose()}>
+      <div className="modal-panel p-8 flex flex-col gap-6" onClick={e => e.stopPropagation()}>
+
+        <div className="flex items-center justify-between pb-6 border-b border-outline-variant/20">
+          <div>
+            <p className="font-label-caps text-label-caps text-secondary tracking-widest mb-1">SPEED PARK</p>
+            <h2 className="font-headline-md text-headline-md text-on-surface italic uppercase">Reservar Sessão</h2>
+          </div>
+          <button onClick={onClose} className="w-10 h-10 flex items-center justify-center border border-outline-variant/30 text-on-surface-variant hover:border-primary-container hover:text-primary transition-colors">
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+
+        <div className="flex items-start gap-3 bg-secondary/10 border border-secondary/20 px-4 py-3">
+          <span className="material-symbols-outlined text-secondary text-base mt-0.5">info</span>
+          <p className="font-body-md text-body-md text-on-surface-variant">
+            Para reservar uma sessão você precisa estar logado. Já tem uma conta no Speed Park?
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={onLogin}
+            className="w-full font-label-caps text-label-caps bg-primary-container text-white py-4 skew-x-m10 brutalist-button cta-pulse hover:bg-primary transition-colors"
+          >
+            <span className="inline-block skew-x-10">SIM, JÁ TENHO CONTA</span>
+          </button>
+          <button
+            onClick={onCadastro}
+            className="w-full font-label-caps text-label-caps bg-surface border border-secondary text-secondary py-4 skew-x-m10 hover:bg-secondary/10 transition-colors"
+          >
+            <span className="inline-block skew-x-10">NÃO, QUERO ME CADASTRAR</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // 1. NAVBAR
 function Navbar({ onOpenCadastro, onOpenLogin }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -821,7 +873,7 @@ function Navbar({ onOpenCadastro, onOpenLogin }) {
 }
 
 // 2. HERO
-function Hero() {
+function Hero({ onReservar }) {
   const heroBgRef = useRef(null);
   const heroSectionRef = useRef(null);
 
@@ -886,7 +938,7 @@ function Hero() {
           </p>
 
           <div className="flex flex-wrap gap-6 reveal-up stagger-2">
-            <button className="font-label-caps text-label-caps bg-primary-container text-white px-8 py-4 skew-x-m10 brutalist-button cta-pulse text-lg">
+            <button onClick={onReservar} className="font-label-caps text-label-caps bg-primary-container text-white px-8 py-4 skew-x-m10 brutalist-button cta-pulse text-lg">
               <span className="inline-block skew-x-10">RESERVAR AGORA</span>
             </button>
 
@@ -1613,12 +1665,12 @@ function Footer() {
 }
 
 // 9. HOME PAGE (COMBINAÇÃO)
-function Home() {
+function Home({ onReservar }) {
   useScrollReveal();
 
   return (
     <main>
-      <Hero />
+      <Hero onReservar={onReservar} />
       <Sessoes />
       <Features />
       <Precos />
@@ -1632,9 +1684,11 @@ function Home() {
 function App() {
   const [cadastroOpen, setCadastroOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [reservarOpen, setReservarOpen] = useState(false);
 
-  const openCadastro = useCallback(() => { setLoginOpen(false); setCadastroOpen(true); }, []);
-  const openLogin    = useCallback(() => { setCadastroOpen(false); setLoginOpen(true); }, []);
+  const openCadastro = useCallback(() => { setLoginOpen(false); setReservarOpen(false); setCadastroOpen(true); }, []);
+  const openLogin    = useCallback(() => { setCadastroOpen(false); setReservarOpen(false); setLoginOpen(true); }, []);
+  const openReservar = useCallback(() => { setCadastroOpen(false); setLoginOpen(false); setReservarOpen(true); }, []);
 
   const handleLogin = useCallback((user) => {
     auth_setSession(user);
@@ -1649,10 +1703,11 @@ function App() {
   return (
     <>
       <Navbar onOpenCadastro={openCadastro} onOpenLogin={openLogin} />
-      <Home />
+      <Home onReservar={openReservar} />
       <Footer />
-      {cadastroOpen && <CadastroPiloto onClose={() => setCadastroOpen(false)} onSuccess={handleCadastroSuccess} />}
-      {loginOpen    && <ModalLogin onClose={() => setLoginOpen(false)} onLogin={handleLogin} onOpenCadastro={openCadastro} />}
+      {reservarOpen  && <ModalReservar onClose={() => setReservarOpen(false)} onLogin={openLogin} onCadastro={openCadastro} />}
+      {cadastroOpen  && <CadastroPiloto onClose={() => setCadastroOpen(false)} onSuccess={handleCadastroSuccess} />}
+      {loginOpen     && <ModalLogin onClose={() => setLoginOpen(false)} onLogin={handleLogin} onOpenCadastro={openCadastro} />}
     </>
   );
 }
