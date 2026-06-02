@@ -1,6 +1,6 @@
 const { useState, useEffect } = React;
 
-// --- AUTH ---
+// --- auth ---
 function auth_getSession() {
   try { return JSON.parse(sessionStorage.getItem('sp_usuario') || 'null'); } catch { return null; }
 }
@@ -12,7 +12,7 @@ if (!usuario || usuario.role !== 'piloto') { window.location.replace('index.html
 
 const HOJE = new Date().toISOString().split('T')[0];
 
-// --- DATA ACCESS (substituir por chamadas API no futuro) ---
+// --- data access (substituir por chamadas api no futuro) ---
 function pilotos_listar() { return JSON.parse(localStorage.getItem('sp_pilotos') || '[]'); }
 function pilotos_salvar(lista) { localStorage.setItem('sp_pilotos', JSON.stringify(lista)); }
 function pilotos_atualizar(id, dados) {
@@ -21,7 +21,7 @@ function pilotos_atualizar(id, dados) {
   auth_updateSession({ ...auth_getSession(), ...dados });
 }
 
-// === AGENDA FIXA ===
+// === agenda fixa ===
 const PISTAS = [
   { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550,  precoPorMin: 6,  precoPorVolta: 4  },
   { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800,  precoPorMin: 8,  precoPorVolta: 6  },
@@ -62,7 +62,7 @@ function historico_do_piloto(nome) {
     .sort((a, b) => b.encerradaEm - a.encerradaEm);
 }
 
-// --- FILHOS / DEPENDENTES ---
+// --- filhos / dependentes ---
 function filhos_listar(pilotoId) {
   return JSON.parse(localStorage.getItem(`sp_filhos_${pilotoId}`) || '[]');
 }
@@ -76,7 +76,7 @@ function filhos_remover(pilotoId, filhoId) {
   filhos_salvar(pilotoId, filhos_listar(pilotoId).filter(f => f.id !== filhoId));
 }
 
-// --- NAVBAR ---
+// --- navbar ---
 function DashboardNav({ activeTab, onTabChange }) {
   const catLabel = { open: 'OPEN', pro: 'PRO', junior: 'JUNIOR' };
   const tabs = [
@@ -115,7 +115,7 @@ function DashboardNav({ activeTab, onTabChange }) {
           </button>
         </div>
       </div>
-      {/* Tabs mobile */}
+      {/* tabs mobile */}
       <div className="md:hidden flex border-t border-outline-variant/20">
         {tabs.map(t => (
           <button key={t.id} onClick={() => onTabChange(t.id)}
@@ -129,7 +129,7 @@ function DashboardNav({ activeTab, onTabChange }) {
   );
 }
 
-// --- TELA CONFIRMAÇÃO ---
+// --- tela confirmação ---
 const FORMA_PAG_LABEL = {
   pix:            'PIX',
   cartao_debito:  'Cartão de Débito',
@@ -186,7 +186,64 @@ function Confirmado({ dados, horario, onNovo }) {
   );
 }
 
-// --- TELA AGENDAR ---
+// --- modal termos de responsabilidade ---
+function ModalTermos({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-auto border border-outline-variant/20 bg-surface-container"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-outline-variant/20 px-6 py-5">
+          <div>
+            <p className="font-label-caps text-label-caps text-secondary mb-1 tracking-widest">SPEED PARK</p>
+            <h3 className="font-headline-md text-headline-md text-on-surface italic uppercase leading-tight">
+              Termo de Responsabilidade
+            </h3>
+          </div>
+          <button onClick={onClose}
+            className="w-10 h-10 flex items-center justify-center border border-outline-variant/30 text-on-surface-variant hover:border-primary-container hover:text-primary transition-colors">
+            <span className="material-symbols-outlined text-xl">close</span>
+          </button>
+        </div>
+        <div className="flex flex-col gap-5 p-6 font-body-md text-body-md text-on-surface-variant leading-relaxed" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>
+          <p>Ao participar das atividades do <strong className="text-on-surface">Speed Park Kartódromo</strong>, o piloto (ou seu responsável legal, nos casos de menores de 18 anos) declara estar ciente e de acordo com os seguintes termos:</p>
+          <div>
+            <p className="font-bold text-on-surface mb-1" style={{ fontSize: '13px' }}>1. Riscos da Atividade</p>
+            <p>O karting é uma atividade motorizada que envolve riscos inerentes, incluindo colisões, tombamentos e contato com superfícies. O participante declara ciência desses riscos e assume plena responsabilidade por eventuais danos físicos decorrentes da prática.</p>
+          </div>
+          <div>
+            <p className="font-bold text-on-surface mb-1" style={{ fontSize: '13px' }}>2. Uso de Equipamentos</p>
+            <p>O uso de capacete, macacão e luvas é obrigatório durante toda a sessão. O Speed Park fornece os equipamentos, que deverão ser devolvidos em boas condições ao final da corrida.</p>
+          </div>
+          <div>
+            <p className="font-bold text-on-surface mb-1" style={{ fontSize: '13px' }}>3. Condições de Saúde</p>
+            <p>O participante declara estar em boas condições de saúde física e mental para praticar a atividade. Pessoas com problemas cardíacos, coluna, gravidez ou qualquer limitação médica devem consultar seu médico antes de participar.</p>
+          </div>
+          <div>
+            <p className="font-bold text-on-surface mb-1" style={{ fontSize: '13px' }}>4. Regras de Conduta</p>
+            <p>O participante compromete-se a respeitar as regras da pista, os fiscais de prova e demais pilotos. Comportamento agressivo ou desrespeito às instruções resultará em desqualificação imediata sem reembolso.</p>
+          </div>
+          <div>
+            <p className="font-bold text-on-surface mb-1" style={{ fontSize: '13px' }}>5. Uso de Imagem</p>
+            <p>O participante autoriza o Speed Park a utilizar imagens e vídeos captados durante as sessões para fins de divulgação nas redes sociais e materiais de marketing, sem ônus para a empresa.</p>
+          </div>
+          <div>
+            <p className="font-bold text-on-surface mb-1" style={{ fontSize: '13px' }}>6. Cancelamentos e Reembolsos</p>
+            <p>Cancelamentos com antecedência mínima de 24 horas terão reembolso integral. Cancelamentos com menos de 24 horas ou no dia estão sujeitos a taxa de 50% do valor pago.</p>
+          </div>
+          <p className="text-xs text-on-surface-variant/60">Speed Park Kartódromo — CNPJ XX.XXX.XXX/XXXX-XX — Rodovia Marechal Rondon Km 524</p>
+        </div>
+        <div className="border-t border-outline-variant/20 px-6 py-4">
+          <button onClick={onClose}
+            className="w-full font-label-caps text-label-caps bg-primary-container text-white py-3 skew-x-m10 brutalist-button hover:bg-primary transition-colors">
+            <span className="inline-block skew-x-10">LI E ENTENDI</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- tela agendar ---
 const FORMAS_PAG = [
   { id: 'pix',           label: 'PIX',     icon: 'qr_code_2'    },
   { id: 'cartao_debito', label: 'Débito',  icon: 'credit_card'  },
@@ -194,13 +251,15 @@ const FORMAS_PAG = [
   { id: 'dinheiro',      label: 'Dinheiro',icon: 'payments'     },
 ];
 
-function Agendar({ onConfirmado }) {
+function Agendar({ onConfirmado, onTabChange }) {
   const [data, setData]               = useState('');
   const [slotSel, setSlotSel]         = useState(null); // { hora, pistaId, pista }
   const [formato, setFormato]         = useState('tempo');
   const [qtd, setQtd]                 = useState(null);
   const [termos, setTermos]           = useState(false);
+  const [showTermos, setShowTermos]   = useState(false);
   const [pilotoNome, setPilotoNome]   = useState(usuario.nome);
+  const [dependenteSel, setDependenteSel] = useState(null); // null = eu mesmo, objeto = dependente
   const [formaPagamento, setFormaPagamento] = useState('');
   const [, forceUpdate]               = useState(0);
 
@@ -249,6 +308,7 @@ function Agendar({ onConfirmado }) {
   let step = 1;
 
   return (
+    <>
     <main className="flex-grow py-12 px-margin-edge w-full max-w-6xl mx-auto">
       <div className="mb-12 border-l-4 border-primary pl-4">
         <div className="font-label-caps text-label-caps text-secondary mb-2 tracking-widest uppercase animate-pulse">
@@ -263,29 +323,47 @@ function Agendar({ onConfirmado }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
         <div className="lg:col-span-8 flex flex-col gap-8">
 
-          {/* QUEM VAI CORRER */}
-          {filhos.length > 0 && (
-            <section className="bg-surface-container-low border border-outline-variant/30 p-6">
-              <div className="flex items-center gap-3 mb-4">
+          {/* quem vai correr */}
+          <section className="bg-surface-container-low border border-outline-variant/30 p-6">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
                 <StepNum n={step++} />
                 <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase">Quem vai correr?</h2>
               </div>
-              <div className="flex flex-wrap gap-3">
-                <button onClick={() => setPilotoNome(usuario.nome)}
-                  className={`px-4 py-2 border font-label-caps text-xs transition-colors ${pilotoNome === usuario.nome ? 'bg-primary-container text-white border-primary-container' : 'border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary'}`}>
-                  Eu ({usuario.nome.split(' ')[0]})
+              {onTabChange && (
+                <button onClick={() => onTabChange('perfil')}
+                  className="flex items-center gap-1 font-label-caps text-xs text-secondary hover:text-primary transition-colors">
+                  <span className="material-symbols-outlined text-sm">person_add</span>
+                  Gerenciar dependentes
                 </button>
-                {filhos.map(f => (
-                  <button key={f.id} onClick={() => setPilotoNome(f.nome)}
-                    className={`px-4 py-2 border font-label-caps text-xs transition-colors ${pilotoNome === f.nome ? 'bg-primary-container text-white border-primary-container' : 'border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary'}`}>
-                    {f.nome.split(' ')[0]} <span className="opacity-60">(filho)</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button onClick={() => { setPilotoNome(usuario.nome); setDependenteSel(null); }}
+                className={`px-4 py-2 border font-label-caps text-xs transition-colors ${!dependenteSel ? 'bg-primary-container text-white border-primary-container' : 'border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary'}`}>
+                Eu ({usuario.nome.split(' ')[0]})
+              </button>
+              {filhos.map(f => (
+                <button key={f.id} onClick={() => { setPilotoNome(f.nome); setDependenteSel(f); }}
+                  className={`px-4 py-2 border font-label-caps text-xs transition-colors ${dependenteSel?.id === f.id ? 'bg-primary-container text-white border-primary-container' : 'border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary'}`}>
+                  {f.nome.split(' ')[0]} <span className="opacity-60">(dependente)</span>
+                </button>
+              ))}
+              {filhos.length === 0 && (
+                <p className="text-on-surface-variant font-body-sm text-body-sm text-sm">
+                  Nenhum dependente cadastrado.{' '}
+                  {onTabChange && (
+                    <button onClick={() => onTabChange('perfil')}
+                      className="text-secondary hover:text-primary transition-colors underline underline-offset-2">
+                      Adicionar no perfil
+                    </button>
+                  )}
+                </p>
+              )}
+            </div>
+          </section>
 
-          {/* DATA */}
+          {/* data */}
           <section className="bg-surface-container-low border border-outline-variant/30 p-6">
             <div className="flex items-center gap-3 mb-6">
               <StepNum n={step++} />
@@ -301,7 +379,7 @@ function Agendar({ onConfirmado }) {
             )}
           </section>
 
-          {/* PISTA E HORÁRIO */}
+          {/* pista e horário */}
           {data && (
             <section className="bg-surface-container-low border border-outline-variant/30 p-6">
               <div className="flex items-center gap-3 mb-6">
@@ -351,7 +429,7 @@ function Agendar({ onConfirmado }) {
             </section>
           )}
 
-          {/* FORMATO E QUANTIDADE */}
+          {/* formato e quantidade */}
           {slotSel && (
             <section className="bg-surface-container-low border border-outline-variant/30 p-6">
               <div className="flex items-center gap-3 mb-6">
@@ -359,7 +437,7 @@ function Agendar({ onConfirmado }) {
                 <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase">Formato da Sessão</h2>
               </div>
 
-              {/* Toggle tempo/voltas */}
+              {/* toggle tempo/voltas */}
               <div className="flex mb-5 bg-surface-dim p-1 border border-outline-variant/30 w-fit">
                 {[['tempo','Por Tempo'],['voltas','Por Voltas']].map(([f, label]) => (
                   <button key={f} onClick={() => mudarFormato(f)}
@@ -369,7 +447,7 @@ function Agendar({ onConfirmado }) {
                 ))}
               </div>
 
-              {/* Opções de quantidade */}
+              {/* opções de quantidade */}
               <div className="grid grid-cols-4 gap-2">
                 {qtdOpts.map(op => (
                   <button key={op} onClick={() => setQtd(op)}
@@ -390,7 +468,7 @@ function Agendar({ onConfirmado }) {
             </section>
           )}
 
-          {/* DADOS DO PILOTO */}
+          {/* dados do piloto */}
           <section className="bg-surface-container-low border border-outline-variant/30 p-6">
             <div className="flex items-center gap-3 mb-6">
               <StepNum n={step++} />
@@ -401,14 +479,24 @@ function Agendar({ onConfirmado }) {
                 <label className="font-label-caps text-label-caps text-on-surface-variant block mb-2">NOME COMPLETO</label>
                 <input type="text" readOnly value={pilotoNome} className={inputClass + ' cursor-default opacity-80'} />
               </div>
-              <div>
-                <label className="font-label-caps text-label-caps text-on-surface-variant block mb-2">CPF</label>
-                <input type="text" readOnly value={usuario.cpf || '--'} className={inputClass + ' cursor-default opacity-80'} />
-              </div>
+              {dependenteSel ? (
+                <div>
+                  <label className="font-label-caps text-label-caps text-on-surface-variant block mb-2">RESPONSÁVEL</label>
+                  <input type="text" readOnly value={usuario.nome} className={inputClass + ' cursor-default opacity-80'} />
+                  <p className="mt-1 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>
+                    CPF do responsável: {usuario.cpf || '--'}
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="font-label-caps text-label-caps text-on-surface-variant block mb-2">CPF</label>
+                  <input type="text" readOnly value={usuario.cpf || '--'} className={inputClass + ' cursor-default opacity-80'} />
+                </div>
+              )}
             </div>
           </section>
 
-          {/* TERMOS */}
+          {/* termos */}
           <section className="bg-surface-container-low border border-outline-variant/30 p-6">
             <label className="flex items-start gap-4 cursor-pointer group">
               <div className="relative flex items-center justify-center mt-1 flex-shrink-0" onClick={() => setTermos(v => !v)}>
@@ -420,13 +508,14 @@ function Agendar({ onConfirmado }) {
                 <span className="font-body-md text-body-md text-on-surface block mb-1 group-hover:text-primary transition-colors">
                   Li e concordo com o Termo de Responsabilidade e Segurança do Speed Park.
                 </span>
-                <a href="#" className="font-label-caps text-label-caps text-secondary hover:underline">LER TERMO COMPLETO</a>
+                <button type="button" onClick={() => setShowTermos(true)}
+                  className="font-label-caps text-label-caps text-secondary hover:underline text-left">LER TERMO COMPLETO</button>
               </div>
             </label>
           </section>
         </div>
 
-        {/* RESUMO */}
+        {/* resumo */}
         <div className="lg:col-span-4">
           <div className="bg-surface-container-high border border-primary/50 p-6 sticky top-24"
             style={{ boxShadow: '4px 4px 0px 0px rgba(217,30,91,0.2)' }}>
@@ -456,7 +545,7 @@ function Agendar({ onConfirmado }) {
               )}
             </div>
 
-            {/* Forma de pagamento */}
+            {/* forma de pagamento */}
             <div className="mb-5 flex flex-col gap-2">
               <p className="font-label-caps text-label-caps text-on-surface-variant text-xs">FORMA DE PAGAMENTO</p>
               <div className="grid grid-cols-2 gap-2">
@@ -493,10 +582,12 @@ function Agendar({ onConfirmado }) {
         </div>
       </div>
     </main>
+    {showTermos && <ModalTermos onClose={() => setShowTermos(false)} />}
+    </>
   );
 }
 
-// --- MINHAS CORRIDAS (agendamentos futuros com cancelamento) ---
+// --- minhas corridas (agendamentos futuros com cancelamento) ---
 function MinhasCorridas() {
   const [reservas, setReservas] = useState([]);
   const [pendCancel, setPendCancel] = useState(null);
@@ -505,7 +596,24 @@ function MinhasCorridas() {
     const minhas = reservas_do_piloto(usuario.id);
     const horariosTodos = JSON.parse(localStorage.getItem('sp_horarios') || '[]');
     const enriquecidas = minhas
-      .map(r => ({ ...r, horario: horariosTodos.find(h => h.id === r.horarioId) || null }))
+      .map(r => {
+        // reserva feita pelo fluxo Agendar: tem data/hora/pistaId direot, sem horarioId
+        if (!r.horarioId && r.data && r.hora) {
+          const pista = PISTAS.find(p => p.id === r.pistaId);
+          return {
+            ...r,
+            horario: {
+              data: r.data,
+              hora: r.hora,
+              tipo: pista ? pista.nome : 'Sessão',
+              duracao: r.formato === 'tempo' ? r.qtd : null,
+              valor: pista && r.formato && r.qtd ? calcPreco(pista, r.formato, r.qtd) : null,
+            },
+          };
+        }
+        // reserva antiga: lookup pelo horarioId
+        return { ...r, horario: horariosTodos.find(h => h.id === r.horarioId) || null };
+      })
       .filter(r => r.horario && r.horario.data >= HOJE)
       .sort((a, b) => (a.horario.data + 'T' + a.horario.hora).localeCompare(b.horario.data + 'T' + b.horario.hora));
     setReservas(enriquecidas);
@@ -580,7 +688,7 @@ function MinhasCorridas() {
   );
 }
 
-// --- HISTÓRICO DE CORRIDAS ---
+// --- histórico de corridas ---
 function Historico() {
   const corridas = historico_do_piloto(usuario.nome);
   const total = corridas.length;
@@ -674,7 +782,7 @@ function Historico() {
   );
 }
 
-// --- PERFIL (com edição e filhos) ---
+// --- perfil (com edição e filhos) ---
 function Perfil() {
   const [usuarioAtual, setUsuarioAtual] = useState(auth_getSession());
   const [editando, setEditando] = useState(false);
@@ -746,7 +854,7 @@ function Perfil() {
         </div>
       )}
 
-      {/* Dados pessoais */}
+      {/* dados pessoais */}
       <div className="bg-surface-container border border-secondary/20 p-8">
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-outline-variant/20">
           <h2 className="font-headline-sm text-headline-sm text-on-surface italic uppercase flex items-center gap-3">
@@ -810,12 +918,12 @@ function Perfil() {
         )}
       </div>
 
-      {/* Filhos / Dependentes */}
+      {/* dependentes */}
       <div className="bg-surface-container border border-secondary/20 p-8">
         <div className="flex items-center justify-between mb-6 pb-4 border-b border-outline-variant/20">
           <h2 className="font-headline-sm text-headline-sm text-on-surface italic uppercase flex items-center gap-3">
             <span className="material-symbols-outlined text-secondary">child_care</span>
-            Dependentes / Filhos
+            Dependentes
           </h2>
           <button onClick={() => setShowAddFilho(v => !v)}
             className="flex items-center gap-2 font-label-caps text-xs border px-4 py-2 transition-colors bg-primary-container text-white hover:bg-primary">
@@ -830,7 +938,7 @@ function Perfil() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>NOME COMPLETO *</label>
-                <input type="text" value={formFilho.nome} onChange={e => setFormFilho(f => ({ ...f, nome: e.target.value }))} className={inputClass} placeholder="Nome do filho" />
+                <input type="text" value={formFilho.nome} onChange={e => setFormFilho(f => ({ ...f, nome: e.target.value }))} className={inputClass} placeholder="Nome completo" />
               </div>
               <div>
                 <label className={labelClass}>DATA DE NASCIMENTO *</label>
@@ -865,7 +973,7 @@ function Perfil() {
             <span className="material-symbols-outlined text-4xl">child_care</span>
             <p className="font-body-sm text-body-sm">Nenhum dependente cadastrado ainda.</p>
             <p className="font-body-sm text-body-sm text-center max-w-sm">
-              Adicione seus filhos para agendá-los sem criar uma conta separada.
+              Adicione dependentes (filhos, sobrinhos, etc.) para agendá-los sem criar uma conta separada.
             </p>
           </div>
         ) : (
@@ -902,7 +1010,7 @@ function Perfil() {
   );
 }
 
-// --- APP PRINCIPAL ---
+// --- app principal ---
 function PilotoDashboard() {
   const [activeTab, setActiveTab] = useState('agendar');
   const [confirmadoDados, setConfirmadoDados] = useState(null);
@@ -920,7 +1028,7 @@ function PilotoDashboard() {
       return <Confirmado dados={confirmadoDados} horario={confirmadoHorario} onNovo={() => setConfirmadoDados(null)} />;
     }
     switch (activeTab) {
-      case 'agendar':   return <Agendar onConfirmado={handleConfirmado} />;
+      case 'agendar':   return <Agendar onConfirmado={handleConfirmado} onTabChange={mudarTab} />;
       case 'minhas':    return <MinhasCorridas />;
       case 'historico': return <Historico />;
       case 'perfil':    return <Perfil />;
@@ -936,7 +1044,7 @@ function PilotoDashboard() {
   );
 }
 
-// --- ERROR BOUNDARY ---
+// --- error boundary ---
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }

@@ -1,6 +1,6 @@
 const { useState, useEffect } = React;
 
-// === AUTH ===
+// === auth ===
 function auth_getSession() {
   try { return JSON.parse(sessionStorage.getItem('sp_usuario') || 'null'); } catch { return null; }
 }
@@ -9,7 +9,7 @@ const usuario = auth_getSession();
 if (!usuario || usuario.role !== 'admin') window.location.replace('index.html');
 function handleLogout() { auth_clearSession(); window.location.href = 'index.html'; }
 
-// === PILOTOS ===
+// === pilotos ===
 function pilotos_listar() { return JSON.parse(localStorage.getItem('sp_pilotos') || '[]'); }
 function pilotos_salvar(lista) { localStorage.setItem('sp_pilotos', JSON.stringify(lista)); }
 function pilotos_deletar(id) { pilotos_salvar(pilotos_listar().filter(p => p.id !== id)); }
@@ -18,7 +18,7 @@ function pilotos_cadastrar(piloto) {
   pilotos_salvar([...pilotos_listar(), { ...piloto, role: 'piloto', id: Date.now(), criadoEm: new Date().toISOString() }]);
 }
 
-// === FROTA ===
+// === frota ===
 function frota_listar() { return JSON.parse(localStorage.getItem('sp_frota') || '[]'); }
 function frota_salvar(l) { localStorage.setItem('sp_frota', JSON.stringify(l)); }
 function frota_add(numero) {
@@ -29,7 +29,7 @@ function frota_setStatus(id, status) {
 }
 function frota_remover(id) { frota_salvar(frota_listar().filter(k => k.id !== id)); }
 
-// === HORÁRIOS (grade criada pelo admin) ===
+// === horários (grade criada pelo admin) ===
 function horarios_listar() { return JSON.parse(localStorage.getItem('sp_horarios') || '[]'); }
 function horarios_salvar(l) { localStorage.setItem('sp_horarios', JSON.stringify(l)); }
 function horarios_add(d) { horarios_salvar([...horarios_listar(), { id: `h${Date.now()}`, ...d }]); }
@@ -41,14 +41,14 @@ function horarios_do_dia(data) {
   return horarios_listar().filter(h => h.data === data).sort((a, b) => a.hora.localeCompare(b.hora));
 }
 
-// === RESERVAS (inscrições em um horário) ===
+// === reservas (inscrições em um horário) ===
 function reservas_listar() { return JSON.parse(localStorage.getItem('sp_reservas') || '[]'); }
 function reservas_salvar(l) { localStorage.setItem('sp_reservas', JSON.stringify(l)); }
 function reservas_add(d) { reservas_salvar([...reservas_listar(), { id: `r${Date.now()}`, ...d }]); }
 function reservas_remover(id) { reservas_salvar(reservas_listar().filter(r => r.id !== id)); }
 function reservas_do_horario(horarioId) { return reservas_listar().filter(r => r.horarioId === horarioId); }
 
-// === CORRIDA ATIVA ===
+// === corrida ativa ===
 function corrida_get() { return JSON.parse(localStorage.getItem('sp_corrida_ativa') || 'null'); }
 function corrida_set(c) { localStorage.setItem('sp_corrida_ativa', JSON.stringify(c)); }
 function corrida_clear() { localStorage.removeItem('sp_corrida_ativa'); }
@@ -57,7 +57,7 @@ function corrida_clear() { localStorage.removeItem('sp_corrida_ativa'); }
 function fat_listar() { return JSON.parse(localStorage.getItem('sp_faturamento') || '[]'); }
 function fat_salvar(l) { localStorage.setItem('sp_faturamento', JSON.stringify(l)); }
 function fat_add(d) {
-  // d pode incluir: valor, descricao, formaPagamento, status
+  // d pode icnluir: valor, descricao, formaPagamento, status
   fat_salvar([...fat_listar(), { id: `f${Date.now()}`, data: new Date().toISOString().slice(0, 10), status: 'pago', formaPagamento: 'pix', ...d }]);
 }
 function fat_update(id, dados) {
@@ -72,7 +72,7 @@ function fat_ontem() {
   return fat_listar().filter(f => f.data === d && f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
 }
 
-// === HISTÓRICO DE CORRIDAS ===
+// === histórico de corridas ===
 function historico_listar() { return JSON.parse(localStorage.getItem('sp_historico') || '[]'); }
 function historico_add(corrida) {
   localStorage.setItem('sp_historico', JSON.stringify([
@@ -81,7 +81,7 @@ function historico_add(corrida) {
   ]));
 }
 
-// === HELPERS ===
+// === helpers ===
 const hoje = new Date().toISOString().slice(0, 10);
 function dataLabel(data) {
   if (data === hoje) return 'Hoje';
@@ -94,14 +94,14 @@ function somarDias(data, n) {
   return d.toISOString().slice(0, 10);
 }
 
-// === AGENDA FIXA ===
+// === agenda fixa ===
 const PISTAS = [
-  { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550  },
-  { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800  },
+  { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550 },
+  { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800 },
   { id: 'pista3', nome: 'Pista 3', capacidade: 30, metros: 1200 },
 ];
-const HORARIOS_SEMANA = ['08:00','10:00','12:00','14:00','16:00','18:00'];
-const HORARIOS_FDS    = ['08:00','10:00','12:00','14:00','16:00','18:00','20:00','22:00'];
+const HORARIOS_SEMANA = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
+const HORARIOS_FDS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
 
 function getHorariosDia(data) {
   const dia = new Date(data + 'T12:00:00').getDay();
@@ -112,19 +112,19 @@ function reservas_do_slot(data, hora, pistaId) {
 }
 
 const NAV_ITEMS = [
-  { id: 'painel',        label: 'Painel',       icon: 'dashboard'      },
-  { id: 'agenda',        label: 'Agenda',        icon: 'calendar_month' },
-  { id: 'clientes',      label: 'Clientes',      icon: 'group'          },
-  { id: 'classificacao', label: 'Classificação', icon: 'leaderboard'    },
-  { id: 'frota',         label: 'Frota',         icon: 'directions_car' },
-  { id: 'financeiro',    label: 'Financeiro',    icon: 'payments'       },
+  { id: 'painel', label: 'Painel', icon: 'dashboard' },
+  { id: 'agenda', label: 'Agenda', icon: 'calendar_month' },
+  { id: 'clientes', label: 'Clientes', icon: 'group' },
+  { id: 'classificacao', label: 'Classificação', icon: 'leaderboard' },
+  { id: 'frota', label: 'Frota', icon: 'directions_car' },
+  { id: 'financeiro', label: 'Financeiro', icon: 'payments' },
 ];
 
-// === SIDEBAR ===
+// === sidebar ===
 function Sidebar({ activeTab, onTabChange, isOpen, onClose }) {
   return (
     <>
-      {/* Overlay mobile */}
+      {/* overlay mobile */}
       <div
         className={`fixed inset-0 z-30 bg-black/60 transition-opacity duration-300 lg:hidden ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
@@ -133,7 +133,7 @@ function Sidebar({ activeTab, onTabChange, isOpen, onClose }) {
         className={`fixed top-0 left-0 z-40 flex flex-col border-r border-outline-variant/20 bg-surface-container-low transition-transform duration-300 ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
         style={{ width: '224px', minHeight: '100vh' }}>
 
-        {/* Botão fechar (mobile) */}
+        {/* botão fechar (mobile) */}
         <button
           className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center text-on-surface-variant transition-colors hover:text-on-surface lg:hidden"
           onClick={onClose}>
@@ -168,7 +168,8 @@ function Sidebar({ activeTab, onTabChange, isOpen, onClose }) {
         </nav>
 
         <div className="flex flex-col gap-1 border-t border-outline-variant/20 p-2">
-          <button className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface">
+          <button onClick={() => window.open('https://wa.me/551836383050', '_blank')}
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface">
             <span className="material-symbols-outlined text-xl">help</span>
             <span style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>Suporte</span>
           </button>
@@ -183,12 +184,15 @@ function Sidebar({ activeTab, onTabChange, isOpen, onClose }) {
   );
 }
 
-// === TOPBAR ===
+// === topbar ===
 function TopBar({ onMenuToggle }) {
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [busca, setBusca] = useState('');
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant/20 bg-surface-container-low px-4 lg:px-6">
       <div className="flex flex-1 items-center gap-3">
-        {/* Hambúrguer — visível só em mobile */}
+        {/* hambúrguer — visível só em mobile */}
         <button
           className="flex h-8 w-8 flex-shrink-0 items-center justify-center text-on-surface-variant transition-colors hover:text-on-surface lg:hidden"
           onClick={onMenuToggle}>
@@ -197,13 +201,28 @@ function TopBar({ onMenuToggle }) {
         <div className="relative max-w-sm flex-1">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-on-surface-variant">search</span>
           <input type="text" placeholder="Pesquisar corridas, pilotos ou karts..."
+            value={busca} onChange={e => setBusca(e.target.value)}
             className="w-full border border-outline-variant/20 bg-surface-container py-2 pl-9 pr-4 text-sm text-on-surface-variant placeholder-on-surface-variant/50 focus:border-primary/50 focus:outline-none transition-colors" />
         </div>
       </div>
-      <div className="flex items-center gap-3">
-        <button className="flex h-8 w-8 items-center justify-center text-on-surface-variant transition-colors hover:text-on-surface">
+      <div className="flex items-center gap-3 relative">
+        <button onClick={() => setNotifOpen(v => !v)}
+          className="flex h-8 w-8 items-center justify-center text-on-surface-variant transition-colors hover:text-on-surface">
           <span className="material-symbols-outlined text-xl">notifications</span>
         </button>
+        {notifOpen && (
+          <div className="absolute right-12 top-10 z-50 w-64 border border-outline-variant/30 bg-surface-container shadow-xl"
+            onMouseLeave={() => setNotifOpen(false)}>
+            <div className="border-b border-outline-variant/20 px-4 py-3">
+              <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.08em', color: 'var(--tw-text-opacity)' }}
+                className="text-on-surface-variant uppercase">Notificações</p>
+            </div>
+            <div className="flex flex-col items-center gap-2 px-4 py-6 text-on-surface-variant">
+              <span className="material-symbols-outlined text-3xl">notifications_off</span>
+              <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>Nenhuma notificação nova</p>
+            </div>
+          </div>
+        )}
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-container">
           <span className="material-symbols-outlined text-sm text-white">person</span>
         </div>
@@ -212,7 +231,58 @@ function TopBar({ onMenuToggle }) {
   );
 }
 
-// === MODAL INICIAR CORRIDA ===
+// === modal briefing de segurança ===
+function BriefingSegurancaModal({ onClose }) {
+  const itens = [
+    { icon: 'sports_motorsports', title: 'Equipamento Obrigatório', body: 'Todos os pilotos devem usar capacete, macacão e luvas fornecidos pelo kartódromo. Verifique tamanho e estado antes de cada sessão.' },
+    { icon: 'speed', title: 'Limites de Velocidade', body: 'Karts Open: até 60 km/h. Karts Pro: até 110 km/h. Karts Junior: até 40 km/h. Respeite os limites da categoria.' },
+    { icon: 'flag', title: 'Sinais de Bandeira', body: 'Verde: pista liberada. Amarela: perigo, reduza a velocidade. Vermelha: pare imediatamente. Xadrez: fim da sessão.' },
+    { icon: 'health_and_safety', title: 'Regras de Segurança', body: 'Proibido contato intencional. Mantenha distância segura. Em caso de pane, acione a bandeira e aguarde o fiscal. Nunca abandone o kart na pista.' },
+    { icon: 'emergency', title: 'Emergência', body: 'Em caso de acidente: permaneça no kart, acione a bandeira e aguarde os fiscais. Ramal interno: 0. Desfibrilador disponível na recepção.' },
+  ];
+  const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-y-auto border border-outline-variant/20 bg-surface-container"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-outline-variant/20 px-6 py-5">
+          <div>
+            <p className="text-secondary" style={lbl}>SPEED PARK · OPERAÇÕES</p>
+            <h3 className="font-bold italic text-on-surface mt-0.5" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '22px' }}>
+              Briefing de Segurança
+            </h3>
+          </div>
+          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="flex flex-col gap-5 p-6">
+          {itens.map(item => (
+            <div key={item.title} className="flex gap-4 items-start">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center border border-secondary/30 bg-surface-container-low">
+                <span className="material-symbols-outlined text-secondary text-xl">{item.icon}</span>
+              </div>
+              <div>
+                <p className="font-bold text-on-surface mb-1" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>{item.title}</p>
+                <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', lineHeight: '1.6' }}>{item.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-outline-variant/20 px-6 py-4">
+          <button onClick={() => window.print()}
+            className="flex w-full items-center justify-center gap-2 border border-secondary/40 py-2 text-secondary hover:bg-secondary/10 transition-colors"
+            style={lbl}>
+            <span className="material-symbols-outlined text-base">print</span>IMPRIMIR BRIEFING
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// === modal iniciar corrida ===
 function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
   const [numero, setNumero] = useState('');
   const [duracao, setDuracao] = useState('10');
@@ -289,7 +359,7 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
   );
 }
 
-// === MODAL ENCERRAR CORRIDA (registra melhor volta e penalidades) ===
+// === modal encerrar corrida (registra melhor volta e penalidades) ===
 function EncerrarCorridaModal({ corrida, onClose, onEncerrada }) {
   const [posicoes, setPosicoes] = useState(
     (corrida.posicoes || []).map(p => ({ ...p, melhorVolta: '', penalidades: '' }))
@@ -356,7 +426,7 @@ function EncerrarCorridaModal({ corrida, onClose, onEncerrada }) {
   );
 }
 
-// === PAINEL PRINCIPAL ===
+// === painel principal ===
 function PainelPrincipal({ onTabChange }) {
   const [frota, setFrota] = useState(frota_listar);
   const [corrida, setCorrida] = useState(corrida_get);
@@ -365,6 +435,7 @@ function PainelPrincipal({ onTabChange }) {
   const [proximasHoje, setProximasHoje] = useState([]);
   const [showIniciar, setShowIniciar] = useState(false);
   const [showEncerrar, setShowEncerrar] = useState(false);
+  const [showBriefing, setShowBriefing] = useState(false);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -418,7 +489,7 @@ function PainelPrincipal({ onTabChange }) {
           </p>
         </div>
         <div className="flex flex-shrink-0 items-center gap-3">
-          <button onClick={() => onTabChange('agenda')}
+          <button onClick={() => setShowBriefing(true)}
             className="flex items-center gap-2 border border-secondary/40 px-4 py-2 text-secondary transition-colors hover:bg-secondary/10"
             style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.1em' }}>
             <span className="material-symbols-outlined text-base">security</span>Briefing de Segurança
@@ -431,9 +502,9 @@ function PainelPrincipal({ onTabChange }) {
         </div>
       </div>
 
-      {/* Cards */}
+      {/* cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {/* Ocupação */}
+        {/* ocupação */}
         <div className="flex flex-col gap-3 border border-outline-variant/20 bg-surface-container p-5">
           <div className="flex items-center justify-between">
             <span className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' }}>OCUPAÇÃO DA PISTA</span>
@@ -460,7 +531,7 @@ function PainelPrincipal({ onTabChange }) {
           )}
         </div>
 
-        {/* Frota */}
+        {/* frota */}
         <div className="flex flex-col gap-3 border border-outline-variant/20 bg-surface-container p-5">
           <div className="flex items-center justify-between">
             <span className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' }}>FROTA ATIVA</span>
@@ -478,7 +549,7 @@ function PainelPrincipal({ onTabChange }) {
           </div>
         </div>
 
-        {/* Faturamento */}
+        {/* faturamento */}
         <div className="flex flex-col gap-3 border border-outline-variant/20 bg-surface-container p-5">
           <div className="flex items-center justify-between">
             <span className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' }}>FATURAMENTO (HOJE)</span>
@@ -502,9 +573,9 @@ function PainelPrincipal({ onTabChange }) {
         </div>
       </div>
 
-      {/* Status + Próximas */}
+      {/* status + próximas */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        {/* Status ao Vivo */}
+        {/* status ao vivo */}
         <div className="flex flex-col border border-outline-variant/20 bg-surface-container lg:col-span-3">
           <div className="flex items-center justify-between border-b border-outline-variant/20 px-5 py-4">
             <div className="flex items-center gap-2">
@@ -559,7 +630,7 @@ function PainelPrincipal({ onTabChange }) {
           )}
         </div>
 
-        {/* Próximas Corridas — lê da grade de horários */}
+        {/* próximas corridas — lê da grade de horários */}
         <div className="flex flex-col border border-outline-variant/20 bg-surface-container lg:col-span-2">
           <div className="flex items-center justify-between border-b border-outline-variant/20 px-5 py-4">
             <span className="font-bold italic uppercase text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '14px' }}>Próximas Corridas</span>
@@ -626,11 +697,12 @@ function PainelPrincipal({ onTabChange }) {
           onEncerrada={() => { setShowEncerrar(false); reload(); }}
         />
       )}
+      {showBriefing && <BriefingSegurancaModal onClose={() => setShowBriefing(false)} />}
     </div>
   );
 }
 
-// === AGENDA ===
+// === agenda ===
 function Agenda() {
   const [dataAtiva, setDataAtiva] = useState(hoje);
   const [slotAberto, setSlotAberto] = useState(null);
@@ -641,11 +713,11 @@ function Agenda() {
   const reload = () => forceUpdate(x => x + 1);
 
   const horarios = getHorariosDia(dataAtiva);
-  const diaObj   = new Date(dataAtiva + 'T12:00:00');
-  const ehFds    = [5, 6].includes(diaObj.getDay());
-  const diaNome  = diaObj.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  const diaObj = new Date(dataAtiva + 'T12:00:00');
+  const ehFds = [5, 6].includes(diaObj.getDay());
+  const diaNome = diaObj.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
 
-  const slotKey  = (hora, pistaId) => `${hora}__${pistaId}`;
+  const slotKey = (hora, pistaId) => `${hora}__${pistaId}`;
   const isAberto = (hora, pistaId) => slotAberto === slotKey(hora, pistaId);
 
   const toggleSlot = (hora, pistaId) => {
@@ -678,7 +750,7 @@ function Agenda() {
         </p>
       </div>
 
-      {/* Navegação de data */}
+      {/* navegação de data */}
       <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => { setDataAtiva(d => somarDias(d, -1)); setSlotAberto(null); }}
           className="flex h-9 w-9 items-center justify-center border border-outline-variant/20 text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface">
@@ -710,7 +782,7 @@ function Agenda() {
         )}
       </div>
 
-      {/* Resumo do dia */}
+      {/* resumo do dia */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-on-surface-variant capitalize"
         style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>
         <span>{diaNome}</span>
@@ -720,7 +792,7 @@ function Agenda() {
         <span>{totalPilotosDia} piloto{totalPilotosDia !== 1 ? 's' : ''} agendado{totalPilotosDia !== 1 ? 's' : ''} hoje</span>
       </div>
 
-      {/* Header das pistas (desktop) */}
+      {/* header das pistas (desktop) */}
       <div className="hidden md:grid gap-3" style={{ gridTemplateColumns: '5rem 1fr 1fr 1fr' }}>
         <div />
         {PISTAS.map(pista => (
@@ -731,17 +803,17 @@ function Agenda() {
         ))}
       </div>
 
-      {/* Grade */}
+      {/* grade */}
       <div className="flex flex-col gap-3">
         {horarios.map(hora => (
           <React.Fragment key={hora}>
-            {/* Linha da hora */}
+            {/* linha da hora */}
             <div className="md:grid gap-3 flex flex-col" style={{ gridTemplateColumns: '5rem 1fr 1fr 1fr' }}>
-              {/* Hora */}
+              {/* hora */}
               <div className="hidden md:flex items-center justify-center">
                 <span className="text-on-surface font-bold" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '16px' }}>{hora}</span>
               </div>
-              {/* Label hora mobile */}
+              {/* label hora mobile */}
               <div className="md:hidden flex items-center gap-2 border-b border-outline-variant/20 pb-2">
                 <span className="text-on-surface font-bold" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '16px' }}>{hora}</span>
                 {ehFds && hora >= '20:00' && (
@@ -749,23 +821,23 @@ function Agenda() {
                 )}
               </div>
 
-              {/* Células das pistas */}
+              {/* células das pistas */}
               {PISTAS.map(pista => {
-                const rs   = reservas_do_slot(dataAtiva, hora, pista.id);
+                const rs = reservas_do_slot(dataAtiva, hora, pista.id);
                 const ocup = rs.length;
-                const cap  = pista.capacidade;
+                const cap = pista.capacidade;
                 const cheio = ocup >= cap;
-                const pct   = Math.round(ocup / cap * 100);
+                const pct = Math.round(ocup / cap * 100);
                 const aberto = isAberto(hora, pista.id);
                 const barColor = cheio ? 'bg-error' : pct > 70 ? 'bg-yellow-400' : 'bg-green-400';
 
                 return (
                   <div key={pista.id}
                     className={`border bg-surface-container transition-all ${aberto ? 'border-primary' : 'border-outline-variant/20 hover:border-outline-variant/50'}`}>
-                    {/* Cabeçalho mobile da pista */}
+                    {/* cabeçalho mobile da pista */}
                     <p className="md:hidden px-4 pt-3 text-on-surface-variant" style={lbl}>{pista.nome} · {pista.metros}m</p>
 
-                    {/* Botão de célula */}
+                    {/* botão de célula */}
                     <button onClick={() => toggleSlot(hora, pista.id)} className="w-full text-left p-4 flex flex-col gap-2">
                       <div className="flex items-center justify-between">
                         <span className="text-on-surface" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '14px' }}>{ocup}/{cap}</span>
@@ -782,7 +854,7 @@ function Agenda() {
                       </span>
                     </button>
 
-                    {/* Painel expandido */}
+                    {/* painel expandido */}
                     {aberto && (
                       <div className="border-t border-outline-variant/20 p-4 flex flex-col gap-3 bg-surface-container-low">
                         {rs.length === 0 ? (
@@ -809,7 +881,7 @@ function Agenda() {
                           </div>
                         )}
 
-                        {/* Adicionar piloto */}
+                        {/* adicionar piloto */}
                         {!cheio && (
                           <div className="flex items-center gap-2">
                             <input type="text" value={formNome}
@@ -825,7 +897,7 @@ function Agenda() {
                           </div>
                         )}
 
-                        {/* Iniciar corrida */}
+                        {/* iniciar corrida */}
                         {rs.length > 0 && (
                           <button
                             onClick={() => setSlotParaIniciar({ pilotos: rs.map(r => ({ nome: r.nome, kart: '' })) })}
@@ -855,7 +927,7 @@ function Agenda() {
   );
 }
 
-// === FROTA ===
+// === frota ===
 function Frota() {
   const [frota, setFrota] = useState(frota_listar);
   const [novoNum, setNovoNum] = useState('');
@@ -868,9 +940,9 @@ function Frota() {
     frota_add(num); setNovoNum(''); setErro(''); reload();
   };
   const statusCfg = {
-    pronto:     { label: 'Pronto',     cls: 'text-green-400 border-green-500/40 bg-green-500/10'    },
-    atenção:    { label: 'Atenção',    cls: 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10' },
-    manutencao: { label: 'Manutenção', cls: 'text-red-400 border-red-500/40 bg-red-500/10'          },
+    pronto: { label: 'Pronto', cls: 'text-green-400 border-green-500/40 bg-green-500/10' },
+    atenção: { label: 'Atenção', cls: 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10' },
+    manutencao: { label: 'Manutenção', cls: 'text-red-400 border-red-500/40 bg-red-500/10' },
   };
   const sorted = [...frota].sort((a, b) => a.numero - b.numero);
 
@@ -929,10 +1001,10 @@ function Frota() {
   );
 }
 
-// === MODAL COMPROVANTE ===
+// === modal comprovante ===
 function ModalComprovante({ registro, onClose }) {
   const formaPagLabel = { pix: 'PIX', cartao_credito: 'Cartão de Crédito', cartao_debito: 'Cartão de Débito', dinheiro: 'Dinheiro' };
-  const statusLabel   = { pago: 'PAGO', pendente: 'PENDENTE' };
+  const statusLabel = { pago: 'PAGO', pendente: 'PENDENTE' };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-sm border border-outline-variant/20 bg-surface-container p-8 flex flex-col gap-5"
@@ -945,11 +1017,11 @@ function ModalComprovante({ registro, onClose }) {
         </div>
         <div className="border-t border-outline-variant/20 pt-4 flex flex-col gap-3">
           {[
-            ['ID',           registro.id],
-            ['DATA',         new Date(registro.data + 'T12:00:00').toLocaleDateString('pt-BR')],
-            ['DESCRIÇÃO',    registro.descricao || '--'],
-            ['PAGAMENTO',    formaPagLabel[registro.formaPagamento] || registro.formaPagamento || '--'],
-            ['STATUS',       statusLabel[registro.status] || registro.status || '--'],
+            ['ID', registro.id],
+            ['DATA', new Date(registro.data + 'T12:00:00').toLocaleDateString('pt-BR')],
+            ['DESCRIÇÃO', registro.descricao || '--'],
+            ['PAGAMENTO', formaPagLabel[registro.formaPagamento] || registro.formaPagamento || '--'],
+            ['STATUS', statusLabel[registro.status] || registro.status || '--'],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between items-center">
               <span className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' }}>{k}</span>
@@ -973,7 +1045,7 @@ function ModalComprovante({ registro, onClose }) {
   );
 }
 
-// === FINANCEIRO ===
+// === financeiro ===
 function Financeiro() {
   const [registros, setRegistros] = useState(fat_listar);
   const [showForm, setShowForm] = useState(false);
@@ -989,8 +1061,8 @@ function Financeiro() {
     reload();
   };
 
-  const totalHoje   = registros.filter(f => f.data === hoje && f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
-  const totalGeral  = registros.filter(f => f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
+  const totalHoje = registros.filter(f => f.data === hoje && f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
+  const totalGeral = registros.filter(f => f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
   const totalPendente = registros.filter(f => f.status === 'pendente').reduce((s, f) => s + Number(f.valor), 0);
   const fmtMoney = v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0);
   const sorted = [...registros].sort((a, b) => b.id.localeCompare(a.id));
@@ -1011,12 +1083,12 @@ function Financeiro() {
         </button>
       </div>
 
-      {/* Cards de totais */}
+      {/* cards de totais */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {[
           { label: 'HOJE (RECEBIDO)', val: totalHoje, color: 'text-on-surface' },
-          { label: 'TOTAL GERAL',     val: totalGeral, color: 'text-on-surface' },
-          { label: 'PENDENTE',        val: totalPendente, color: 'text-yellow-400' },
+          { label: 'TOTAL GERAL', val: totalGeral, color: 'text-on-surface' },
+          { label: 'PENDENTE', val: totalPendente, color: 'text-yellow-400' },
         ].map(({ label, val, color }) => (
           <div key={label} className="flex flex-col gap-2 border border-outline-variant/20 bg-surface-container p-5">
             <span className="text-on-surface-variant" style={lbl}>{label}</span>
@@ -1029,7 +1101,7 @@ function Financeiro() {
         ))}
       </div>
 
-      {/* Formulário */}
+      {/* formulário */}
       {showForm && (
         <div className="border border-outline-variant/20 bg-surface-container p-5 flex flex-col gap-4">
           <p className="font-bold italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '16px' }}>Novo Registro</p>
@@ -1068,7 +1140,7 @@ function Financeiro() {
         </div>
       )}
 
-      {/* Tabela */}
+      {/* tabela */}
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center gap-3 border border-outline-variant/20 bg-surface-container py-16 text-on-surface-variant">
           <span className="material-symbols-outlined text-5xl">receipt_long</span>
@@ -1130,7 +1202,7 @@ function Financeiro() {
   );
 }
 
-// === MODAL CADASTRAR PILOTO (pelo admin) ===
+// === modal cadastrar piloto (pelo admin) ===
 function ModalCadastrarPiloto({ onClose, onCadastrado }) {
   const VAZIO = { nome: '', cpf: '', email: '', telefone: '', nascimento: '', categoria: '', altura: '', peso: '', senha: '' };
   const [form, setForm] = useState(VAZIO);
@@ -1182,7 +1254,7 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
       <div className="flex max-h-[90vh] w-full max-w-2xl flex-col gap-0 overflow-y-auto border border-outline-variant/20 bg-surface-container"
         onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
+        {/* header */}
         <div className="flex items-center justify-between border-b border-outline-variant/20 px-6 py-5">
           <div>
             <p className="text-secondary" style={lbl}>SPEED PARK · ATENDIMENTO</p>
@@ -1195,17 +1267,17 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
           </button>
         </div>
 
-        {/* Form */}
+        {/* form */}
         <div className="flex flex-col gap-5 p-6">
 
-          {/* Nome */}
+          {/* nome */}
           <div className="flex flex-col gap-1">
             <label className="text-on-surface-variant" style={lbl}>NOME COMPLETO *</label>
             <input type="text" value={form.nome} onChange={set('nome')} placeholder="Ex: Carlos Mendonça" className="modal-input" autoComplete="off" />
             {erros.nome && <p className="text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>{erros.nome}</p>}
           </div>
 
-          {/* CPF + Nascimento */}
+          {/* cpf + nascimento */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label className="text-on-surface-variant" style={lbl}>CPF *</label>
@@ -1221,7 +1293,7 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
             </div>
           </div>
 
-          {/* Email + Telefone */}
+          {/* email + telefone */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label className="text-on-surface-variant" style={lbl}>E-MAIL *</label>
@@ -1237,7 +1309,7 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
             </div>
           </div>
 
-          {/* Categoria */}
+          {/* categoria */}
           <div className="flex flex-col gap-1">
             <label className="text-on-surface-variant" style={lbl}>CATEGORIA *</label>
             <select value={form.categoria} onChange={set('categoria')} className="modal-input">
@@ -1249,7 +1321,7 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
             {erros.categoria && <p className="text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>{erros.categoria}</p>}
           </div>
 
-          {/* Altura + Peso */}
+          {/* altura + peso */}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1">
               <label className="text-on-surface-variant" style={lbl}>ALTURA (cm) *</label>
@@ -1263,7 +1335,7 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
             </div>
           </div>
 
-          {/* Senha */}
+          {/* senha */}
           <div className="flex flex-col gap-2">
             <label className="text-on-surface-variant" style={lbl}>SENHA DE ACESSO *</label>
             <div className="flex gap-2">
@@ -1295,7 +1367,7 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
           </div>
         </div>
 
-        {/* Footer */}
+        {/* footer */}
         <div className="border-t border-outline-variant/20 px-6 py-4 flex gap-3">
           <button onClick={salvar}
             className="flex-1 flex items-center justify-center gap-2 bg-primary-container py-3 text-white transition-opacity hover:opacity-90"
@@ -1313,7 +1385,7 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
   );
 }
 
-// === CLIENTES ===
+// === clientes ===
 function Clientes() {
   const [pilotos, setPilotos] = useState(pilotos_listar);
   const [busca, setBusca] = useState('');
@@ -1324,7 +1396,7 @@ function Clientes() {
   const reload = () => setPilotos(pilotos_listar());
 
   const catLabel = { open: 'Open', pro: 'Pro', junior: 'Junior' };
-  const catColor  = { open: 'border-secondary/40 text-secondary', pro: 'border-primary/40 text-primary', junior: 'border-tertiary/40 text-tertiary' };
+  const catColor = { open: 'border-secondary/40 text-secondary', pro: 'border-primary/40 text-primary', junior: 'border-tertiary/40 text-tertiary' };
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' };
 
   const filtrados = pilotos.filter(p =>
@@ -1341,10 +1413,10 @@ function Clientes() {
   };
 
   const stats = [
-    { label: 'Total',  valor: pilotos.length,                                         icon: 'group',          color: 'text-on-surface' },
-    { label: 'Open',   valor: pilotos.filter(p => p.categoria === 'open').length,   icon: 'directions_car', color: 'text-secondary'  },
-    { label: 'Pro',    valor: pilotos.filter(p => p.categoria === 'pro').length,    icon: 'speed',          color: 'text-primary'    },
-    { label: 'Junior', valor: pilotos.filter(p => p.categoria === 'junior').length, icon: 'child_care',     color: 'text-tertiary'   },
+    { label: 'Total', valor: pilotos.length, icon: 'group', color: 'text-on-surface' },
+    { label: 'Open', valor: pilotos.filter(p => p.categoria === 'open').length, icon: 'directions_car', color: 'text-secondary' },
+    { label: 'Pro', valor: pilotos.filter(p => p.categoria === 'pro').length, icon: 'speed', color: 'text-primary' },
+    { label: 'Junior', valor: pilotos.filter(p => p.categoria === 'junior').length, icon: 'child_care', color: 'text-tertiary' },
   ];
 
   return (
@@ -1361,7 +1433,7 @@ function Clientes() {
         </button>
       </div>
 
-      {/* Banner de sucesso após cadastro */}
+      {/* banner de sucesso após cadastro */}
       {sucesso && (
         <div className="flex items-start gap-3 border border-green-500/40 bg-green-500/10 px-5 py-4">
           <span className="material-symbols-outlined text-green-400 text-xl flex-shrink-0 mt-0.5">check_circle</span>
@@ -1381,7 +1453,7 @@ function Clientes() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* stats */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {stats.map(s => (
           <div key={s.label} className="flex flex-col gap-2 border border-secondary/20 bg-surface-container p-5">
@@ -1392,7 +1464,7 @@ function Clientes() {
         ))}
       </div>
 
-      {/* Tabela */}
+      {/* tabela */}
       <div className="border border-secondary/20 bg-surface-container">
         <div className="flex flex-col gap-4 border-b border-outline-variant/20 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="flex items-center gap-2 font-bold italic uppercase text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '14px' }}>
@@ -1475,9 +1547,9 @@ function Clientes() {
   );
 }
 
-// === CLASSIFICAÇÃO ===
+// === classificação ===
 const PONTOS_F1 = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
-const medalhas  = ['text-yellow-400', 'text-zinc-400', 'text-amber-600'];
+const medalhas = ['text-yellow-400', 'text-zinc-400', 'text-amber-600'];
 
 function Classificacao() {
   const historico = historico_listar();
@@ -1556,7 +1628,7 @@ function Classificacao() {
   );
 }
 
-// === APP ===
+// === app ===
 function DashboardAdmin() {
   const [activeTab, setActiveTab] = useState('painel');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1568,11 +1640,11 @@ function DashboardAdmin() {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'painel':        return <PainelPrincipal onTabChange={handleTabChange} />;
-      case 'agenda':        return <Agenda />;
-      case 'clientes':      return <Clientes />;
-      case 'frota':         return <Frota />;
-      case 'financeiro':    return <Financeiro />;
+      case 'painel': return <PainelPrincipal onTabChange={handleTabChange} />;
+      case 'agenda': return <Agenda />;
+      case 'clientes': return <Clientes />;
+      case 'frota': return <Frota />;
+      case 'financeiro': return <Financeiro />;
       case 'classificacao': return <Classificacao />;
       default: return null;
     }
@@ -1594,7 +1666,7 @@ function DashboardAdmin() {
   );
 }
 
-// --- ERROR BOUNDARY ---
+// --- error boundary ---
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -1612,15 +1684,15 @@ class ErrorBoundary extends React.Component {
   render() {
     if (!this.state.hasError) return this.props.children;
     const s = {
-      page:         { minHeight: '100vh', background: '#051424', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: 'Hanken Grotesk, sans-serif' },
-      card:         { maxWidth: '480px', width: '100%', border: '1px solid rgba(170,136,140,0.2)', background: '#122131', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' },
-      tag:          { color: '#d91e5b', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', margin: 0 },
-      title:        { fontFamily: 'Anybody, sans-serif', fontSize: '28px', fontWeight: '800', fontStyle: 'italic', color: '#d4e4fa', lineHeight: '1.2', margin: 0 },
-      desc:         { fontSize: '14px', color: '#e3bdc2', lineHeight: '1.6', margin: 0 },
-      pre:          { marginTop: '0.75rem', fontSize: '11px', color: '#ffb4ab', background: '#010f1f', padding: '0.75rem', overflowX: 'auto', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
-      summary:      { fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', color: '#aa888c', cursor: 'pointer', userSelect: 'none' },
-      row:          { display: 'flex', gap: '0.75rem' },
-      btnPrimary:   { flex: 1, background: '#d91e5b', color: '#fff', border: 'none', padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '12px', fontWeight: '700', fontFamily: 'Hanken Grotesk, sans-serif', letterSpacing: '0.1em' },
+      page: { minHeight: '100vh', background: '#051424', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: 'Hanken Grotesk, sans-serif' },
+      card: { maxWidth: '480px', width: '100%', border: '1px solid rgba(170,136,140,0.2)', background: '#122131', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+      tag: { color: '#d91e5b', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', margin: 0 },
+      title: { fontFamily: 'Anybody, sans-serif', fontSize: '28px', fontWeight: '800', fontStyle: 'italic', color: '#d4e4fa', lineHeight: '1.2', margin: 0 },
+      desc: { fontSize: '14px', color: '#e3bdc2', lineHeight: '1.6', margin: 0 },
+      pre: { marginTop: '0.75rem', fontSize: '11px', color: '#ffb4ab', background: '#010f1f', padding: '0.75rem', overflowX: 'auto', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+      summary: { fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', color: '#aa888c', cursor: 'pointer', userSelect: 'none' },
+      row: { display: 'flex', gap: '0.75rem' },
+      btnPrimary: { flex: 1, background: '#d91e5b', color: '#fff', border: 'none', padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '12px', fontWeight: '700', fontFamily: 'Hanken Grotesk, sans-serif', letterSpacing: '0.1em' },
       btnSecondary: { flex: 1, background: 'transparent', color: '#9bccf6', border: '1px solid rgba(155,204,246,0.3)', padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '12px', fontWeight: '700', fontFamily: 'Hanken Grotesk, sans-serif', letterSpacing: '0.1em' },
     };
     return (
@@ -1647,7 +1719,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// --- MOUNT ---
+// --- mount ---
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>

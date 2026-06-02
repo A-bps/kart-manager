@@ -1,11 +1,11 @@
 // =========================================================
 // app.jsx — Speed Park
-// Lógica React do projeto unificada para execução no navegador.
+// lóigca react do projeto unificada pra execução no navegador.
 // =========================================================
 
 const { useState, useEffect, useRef, useCallback } = React;
 
-// --- CUSTOM HOOKS ---
+// --- custom hooks ---
 function useScrollReveal() {
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -25,8 +25,8 @@ function useScrollReveal() {
   }, []);
 }
 
-// --- AUTH UTILITIES ---
-// Credenciais temporárias — substituir por autenticação via API quando o backend estiver pronto
+// --- auth utilities ---
+// credenciais temporárias — substituir por autenticação via api quando o backend estiver pronto
 const ADMIN_USER = { email: 'admin@speedpark.com', senha: 'admin123', role: 'admin', nome: 'Administrador Speed Park' };
 
 function auth_salvarPiloto(piloto) {
@@ -53,9 +53,9 @@ function auth_getSession() {
 function auth_setSession(u) { sessionStorage.setItem('sp_usuario', JSON.stringify(u)); }
 function auth_clearSession() { sessionStorage.removeItem('sp_usuario'); }
 
-// --- COMPONENTES ---
+// --- componentes ---
 
-// MODAL LOGIN
+// modal login
 function ModalLogin({ onClose, onLogin, onOpenCadastro }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -131,9 +131,9 @@ function ModalLogin({ onClose, onLogin, onOpenCadastro }) {
   );
 }
 
-// (DashboardNav, DashboardPiloto e DashboardAdmin estão em dashboard-piloto.jsx / dashboard-admin.jsx)
+// (DashboardNav, DashboardPiloto e DashboardAdmin ficam em dashboard-piloto.jsx / dashboard-admin.jsx)
 
-// NAVBAR DO DASHBOARD — mantida aqui apenas para não quebrar referências antigas
+// navbar do dashboard — mantida aqui apenas pra não quebrar referências antigas
 function DashboardNav({ usuario, onLogout }) {
   const catLabel = { open: 'OPEN', pro: 'PRO', junior: 'JUNIOR' };
   return (
@@ -161,7 +161,7 @@ function DashboardNav({ usuario, onLogout }) {
   );
 }
 
-// DASHBOARD PILOTO
+// dashboard piloto
 function DashboardPiloto({ usuario, onLogout }) {
   const catLabel = { open: 'Open', pro: 'Pro', junior: 'Junior' };
   const catColor = { open: 'border-secondary text-secondary', pro: 'border-primary text-primary', junior: 'border-tertiary text-tertiary' };
@@ -186,7 +186,7 @@ function DashboardPiloto({ usuario, onLogout }) {
     <div className="min-h-screen bg-background">
       <DashboardNav usuario={usuario} onLogout={onLogout} />
 
-      {/* Hero */}
+      {/* hero */}
       <section className="bg-surface-container-low border-b border-outline-variant/20 py-12 px-margin-edge relative overflow-hidden">
         <div className="absolute inset-0 checkered-pattern opacity-10" aria-hidden="true" />
         <div className="absolute top-0 right-0 w-1/3 h-full bg-primary-container/5 blur-3xl rounded-full" aria-hidden="true" />
@@ -204,7 +204,7 @@ function DashboardPiloto({ usuario, onLogout }) {
 
       <div className="max-w-container-max mx-auto px-margin-edge py-10 flex flex-col gap-8">
 
-        {/* Stats */}
+        {/* stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-gutter">
           {stats.map((s) => (
             <div key={s.label} className="bg-surface-container border border-secondary/20 p-6 flex flex-col gap-3 hover:border-primary-container/50 transition-colors">
@@ -219,7 +219,7 @@ function DashboardPiloto({ usuario, onLogout }) {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
-          {/* Perfil */}
+          {/* perfil */}
           <div className="lg:col-span-2 bg-surface-container border border-secondary/20 p-8">
             <h2 className="font-headline-sm text-headline-sm text-on-surface italic uppercase mb-6 pb-4 border-b border-outline-variant/20 flex items-center gap-3">
               <span className="material-symbols-outlined text-secondary">person</span>
@@ -240,17 +240,18 @@ function DashboardPiloto({ usuario, onLogout }) {
             </div>
           </div>
 
-          {/* Ações */}
+          {/* ações */}
           <div className="flex flex-col gap-4">
             <div className="bg-surface-container border border-secondary/20 p-6 flex flex-col gap-4">
               <h3 className="font-headline-sm text-headline-sm text-on-surface italic uppercase text-sm flex items-center gap-2">
                 <span className="material-symbols-outlined text-secondary text-base">bolt</span>
                 Ações Rápidas
               </h3>
-              <button className="w-full font-label-caps text-label-caps bg-primary-container text-white py-3 skew-x-m10 brutalist-button cta-pulse hover:bg-primary transition-colors text-xs">
+              <button onClick={() => window.location.href = 'dashboard-piloto.html'}
+                className="w-full font-label-caps text-label-caps bg-primary-container text-white py-3 skew-x-m10 brutalist-button cta-pulse hover:bg-primary transition-colors text-xs">
                 <span className="inline-block skew-x-10">RESERVAR SESSÃO</span>
               </button>
-              <button onClick={onLogout}
+              <button onClick={() => window.location.href = 'index.html'}
                 className="w-full font-label-caps text-label-caps bg-surface border border-secondary text-secondary py-3 skew-x-m10 hover:bg-secondary/10 transition-colors text-xs">
                 <span className="inline-block skew-x-10">VOLTAR AO SITE</span>
               </button>
@@ -268,7 +269,7 @@ function DashboardPiloto({ usuario, onLogout }) {
   );
 }
 
-// DASHBOARD ADMIN
+// dashboard admin
 function DashboardAdmin({ usuario, onLogout }) {
   const [pilotos, setPilotos] = useState(() => auth_listarPilotos());
   const [busca, setBusca] = useState('');
@@ -301,7 +302,7 @@ function DashboardAdmin({ usuario, onLogout }) {
     <div className="min-h-screen bg-background">
       <DashboardNav usuario={usuario} onLogout={onLogout} />
 
-      {/* Hero */}
+      {/* hero */}
       <section className="bg-surface-container-low border-b border-outline-variant/20 py-10 px-margin-edge relative overflow-hidden">
         <div className="absolute inset-0 checkered-pattern opacity-10" aria-hidden="true" />
         <div className="max-w-container-max mx-auto relative z-10">
@@ -314,7 +315,7 @@ function DashboardAdmin({ usuario, onLogout }) {
 
       <div className="max-w-container-max mx-auto px-margin-edge py-10 flex flex-col gap-8">
 
-        {/* Stats */}
+        {/* stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-gutter">
           {stats.map((s) => (
             <div key={s.label} className="bg-surface-container border border-secondary/20 p-6 flex flex-col gap-2">
@@ -325,7 +326,7 @@ function DashboardAdmin({ usuario, onLogout }) {
           ))}
         </div>
 
-        {/* Tabela */}
+        {/* tabela */}
         <div className="bg-surface-container border border-secondary/20">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5 border-b border-outline-variant/20">
             <h2 className="font-headline-sm text-headline-sm text-on-surface italic uppercase text-sm flex items-center gap-2">
@@ -400,7 +401,7 @@ function DashboardAdmin({ usuario, onLogout }) {
   );
 }
 
-// 0. MODAL CADASTRO DE PILOTO
+// 0. modal cadastro de piloto
 function CadastroPiloto({ onClose, onSuccess }) {
   const [form, setForm] = useState({
     nome: '', cpf: '', email: '', telefone: '',
@@ -511,7 +512,7 @@ function CadastroPiloto({ onClose, onSuccess }) {
     <div className="modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
       <div className="modal-panel" onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
+        {/* header */}
         <div className="flex items-center justify-between px-8 pt-8 pb-6 border-b border-outline-variant/20">
           <div>
             <p className="font-label-caps text-label-caps text-secondary tracking-widest mb-1">
@@ -530,10 +531,10 @@ function CadastroPiloto({ onClose, onSuccess }) {
           </button>
         </div>
 
-        {/* Form */}
+        {/* form */}
         <form onSubmit={handleSubmit} noValidate className="px-8 py-6 modal-field-group">
 
-          {/* Nome */}
+          {/* nome */}
           <div>
             <label className="modal-label">Nome Completo *</label>
             <input
@@ -547,7 +548,7 @@ function CadastroPiloto({ onClose, onSuccess }) {
             {errors.nome && <p className="text-xs text-error mt-1">{errors.nome}</p>}
           </div>
 
-          {/* CPF + Nascimento */}
+          {/* cpf + nascimento */}
           <div className="modal-row">
             <div>
               <label className="modal-label">CPF *</label>
@@ -577,7 +578,7 @@ function CadastroPiloto({ onClose, onSuccess }) {
             </div>
           </div>
 
-          {/* Email + Telefone */}
+          {/* email + telefone */}
           <div className="modal-row">
             <div>
               <label className="modal-label">E-mail *</label>
@@ -608,7 +609,7 @@ function CadastroPiloto({ onClose, onSuccess }) {
             </div>
           </div>
 
-          {/* Categoria */}
+          {/* categoria */}
           <div>
             <label className="modal-label">Categoria *</label>
             <select className="modal-input" value={form.categoria} onChange={set('categoria')}>
@@ -620,7 +621,7 @@ function CadastroPiloto({ onClose, onSuccess }) {
             {errors.categoria && <p className="text-xs text-error mt-1">{errors.categoria}</p>}
           </div>
 
-          {/* Altura + Peso */}
+          {/* altura + peso */}
           <div className="modal-row">
             <div>
               <label className="modal-label">Altura (cm) *</label>
@@ -652,7 +653,7 @@ function CadastroPiloto({ onClose, onSuccess }) {
             </div>
           </div>
 
-          {/* Senha + Confirmar */}
+          {/* senha + confirmar */}
           <div className="modal-row">
             <div>
               <label className="modal-label">Senha *</label>
@@ -694,7 +695,7 @@ function CadastroPiloto({ onClose, onSuccess }) {
             </div>
           </div>
 
-          {/* Divider */}
+          {/* divider */}
           <div className="border-t border-outline-variant/20 pt-4 flex flex-col gap-3">
             <button
               type="submit"
@@ -716,7 +717,7 @@ function CadastroPiloto({ onClose, onSuccess }) {
   );
 }
 
-// MODAL RESERVAR
+// modal reservar
 function ModalReservar({ onClose, onLogin, onCadastro }) {
   const overlayRef = useRef(null);
 
@@ -768,7 +769,7 @@ function ModalReservar({ onClose, onLogin, onCadastro }) {
   );
 }
 
-// 1. NAVBAR
+// 1. navbar
 function Navbar({ onOpenCadastro, onOpenLogin }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -784,7 +785,7 @@ function Navbar({ onOpenCadastro, onOpenLogin }) {
     <nav className="sticky top-0 z-50 border-b border-outline-variant/30 bg-surface/95 backdrop-blur-md">
       <div className="flex justify-between items-center w-full px-margin-edge py-4 max-w-container-max mx-auto">
 
-        {/* Logo */}
+        {/* logo */}
         <a href="#hero-section" className="flex items-center gap-4 reveal-up">
           <img
             src="src/assets/images/LogoSpeedPark.png"
@@ -796,7 +797,7 @@ function Navbar({ onOpenCadastro, onOpenLogin }) {
           </span>
         </a>
 
-        {/* Links desktop */}
+        {/* links desktop */}
         <div className="hidden md:flex items-center gap-8 reveal-up stagger-1">
           {navLinks.map((link) => (
             <a
@@ -809,7 +810,7 @@ function Navbar({ onOpenCadastro, onOpenLogin }) {
           ))}
         </div>
 
-        {/* CTAs desktop */}
+        {/* ctas desktop */}
         <div className="hidden md:flex items-center gap-4 reveal-up stagger-2">
           <button
             onClick={onOpenLogin}
@@ -825,7 +826,7 @@ function Navbar({ onOpenCadastro, onOpenLogin }) {
           </button>
         </div>
 
-        {/* Hamburguer mobile */}
+        {/* hamburguer mobile */}
         <button
           className="md:hidden text-primary p-1"
           onClick={() => setMobileOpen(!mobileOpen)}
@@ -838,7 +839,7 @@ function Navbar({ onOpenCadastro, onOpenLogin }) {
         </button>
       </div>
 
-      {/* Menu mobile */}
+      {/* menu mobile */}
       {mobileOpen && (
         <div className="md:hidden bg-surface-container border-t border-outline-variant/30 px-margin-edge py-6 flex flex-col gap-4">
           {navLinks.map((link) => (
@@ -872,7 +873,7 @@ function Navbar({ onOpenCadastro, onOpenLogin }) {
   );
 }
 
-// 2. HERO
+// 2. hero
 function Hero({ onReservar }) {
   const heroBgRef = useRef(null);
   const heroSectionRef = useRef(null);
@@ -955,7 +956,7 @@ function Hero({ onReservar }) {
   );
 }
 
-// 3. SESSOES
+// 3. sessoes
 function Sessoes() {
   const categories = [
     {
@@ -1081,7 +1082,7 @@ function Sessoes() {
   );
 }
 
-// 4. FEATURES
+// 4. features
 function Features() {
   const features = [
     {
@@ -1151,8 +1152,8 @@ function Features() {
   );
 }
 
-// 5. PRECOS
-function Precos() {
+// 5. precos
+function Precos({ onReservar }) {
   const planos = [
     {
       id: 'avulso',
@@ -1286,6 +1287,7 @@ function Precos() {
                 </ul>
 
                 <button
+                  onClick={onReservar}
                   className={`w-full font-label-caps text-label-caps py-4 skew-x-m10 brutalist-button transition-colors ${plano.destaque
                     ? 'bg-primary-container text-white cta-pulse hover:bg-primary'
                     : 'bg-surface border border-secondary text-secondary hover:bg-secondary/10'
@@ -1307,7 +1309,7 @@ function Precos() {
   );
 }
 
-// 6. RANKINGS
+// 6. rankings
 const MOCK_RANKINGS = {
   open: [
     { pos: 1, nome: 'Carlos Mendonça', melhorVolta: '58.234', corridas: 42, pontos: 1840 },
@@ -1418,21 +1420,19 @@ function Rankings() {
         </div>
 
         <div className="bg-surface-container border border-secondary/20 overflow-hidden reveal-up stagger-1">
-          <div className="grid grid-cols-[2.5rem_1fr_auto] gap-3 sm:gap-4 px-4 sm:px-6 py-4 bg-surface-container-high border-b border-secondary/20">
+          {/* cabeçalho */}
+          <div className="grid grid-cols-[2.5rem_1fr_4rem] sm:grid-cols-[2.5rem_1fr_8rem_4rem] md:grid-cols-[2.5rem_1fr_8rem_5.5rem_4.5rem] gap-x-4 px-4 sm:px-6 py-4 bg-surface-container-high border-b border-secondary/20">
             <span className="font-label-caps text-label-caps text-on-surface-variant">#</span>
             <span className="font-label-caps text-label-caps text-on-surface-variant">PILOTO</span>
-            <div className="flex items-center justify-end gap-4 sm:gap-6">
-              <span className="font-label-caps text-label-caps text-on-surface-variant text-right hidden sm:block">MELHOR VOLTA</span>
-              <span className="font-label-caps text-label-caps text-on-surface-variant text-right hidden md:block">CORRIDAS</span>
-              <span className="font-label-caps text-label-caps text-on-surface-variant text-right">PTS</span>
-            </div>
+            <span className="font-label-caps text-label-caps text-on-surface-variant text-right hidden sm:block">MELHOR VOLTA</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant text-right hidden md:block">CORRIDAS</span>
+            <span className="font-label-caps text-label-caps text-on-surface-variant text-right">PTS</span>
           </div>
 
           {pilotos.map((piloto, i) => (
             <div
               key={piloto.pos}
-              className={`grid grid-cols-[2.5rem_1fr_auto] gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high group ${i === 0 ? 'bg-primary-container/5' : ''
-                }`}
+              className={`grid grid-cols-[2.5rem_1fr_4rem] sm:grid-cols-[2.5rem_1fr_8rem_4rem] md:grid-cols-[2.5rem_1fr_8rem_5.5rem_4.5rem] gap-x-4 items-center px-4 sm:px-6 py-4 border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high group ${i === 0 ? 'bg-primary-container/5' : ''}`}
             >
               <div className="flex items-center">
                 {i < 3 ? (
@@ -1446,23 +1446,21 @@ function Rankings() {
                 )}
               </div>
 
-              <div className="flex items-center">
-                <span className={`font-body-md text-body-md group-hover:text-primary transition-colors ${i === 0 ? 'text-on-surface font-bold' : 'text-on-surface-variant'}`}>
-                  {piloto.nome}
-                </span>
-              </div>
+              <span className={`font-body-md text-body-md group-hover:text-primary transition-colors ${i === 0 ? 'text-on-surface font-bold' : 'text-on-surface-variant'}`}>
+                {piloto.nome}
+              </span>
 
-              <div className="flex items-center justify-end gap-4 sm:gap-6">
-                <span className="font-label-data text-label-data text-secondary shimmer-text hidden sm:block">
-                  {piloto.melhorVolta}s
-                </span>
-                <span className="font-label-data text-label-data text-on-surface-variant hidden md:block">
-                  {piloto.corridas}
-                </span>
-                <span className={`font-label-data text-label-data ${i === 0 ? 'text-primary shimmer-text' : 'text-on-surface-variant'}`}>
-                  {piloto.pontos}
-                </span>
-              </div>
+              <span className="font-label-data text-label-data text-secondary shimmer-text text-right hidden sm:block">
+                {piloto.melhorVolta}s
+              </span>
+
+              <span className="font-label-data text-label-data text-on-surface-variant text-right hidden md:block">
+                {piloto.corridas}
+              </span>
+
+              <span className={`font-label-data text-label-data text-right ${i === 0 ? 'text-primary shimmer-text' : 'text-on-surface-variant'}`}>
+                {piloto.pontos}
+              </span>
             </div>
           ))}
         </div>
@@ -1477,7 +1475,7 @@ function Rankings() {
   );
 }
 
-// 7. SOBRE
+// 7. sobre
 function Sobre() {
   const stats = [
     { valor: '2018', label: 'Fundado em' },
@@ -1585,20 +1583,20 @@ function Sobre() {
   );
 }
 
-// 8. FOOTER
+// 8. footer
 function Footer() {
   const sociais = [
-    { icon: 'chat',         label: 'WhatsApp',  href: '#' },
-    { icon: 'photo_camera', label: 'Instagram', href: '#' },
+    { icon: 'chat',         label: 'WhatsApp',  href: 'https://api.whatsapp.com/send?phone=551836383050&text=Ol%C3%A1,%20estou%20precisando%20de%20informa%C3%A7%C3%B5es' },
+    { icon: 'photo_camera', label: 'Instagram', href: 'https://www.instagram.com/speedpark.oficial/?hl=pt' },
   ];
 
   return (
     <footer className="bg-surface-container-lowest border-t-4 border-primary">
 
-      {/* Corpo principal */}
+      {/* corpo principal */}
       <div className="max-w-container-max mx-auto px-margin-edge py-10 flex flex-col md:flex-row md:items-center gap-8 md:gap-0 reveal-up">
 
-        {/* Logo */}
+        {/* logo */}
         <div className="flex items-center gap-4 md:w-56 flex-shrink-0">
           <img
             src="src/assets/images/LogoSpeedPark.png"
@@ -1610,20 +1608,20 @@ function Footer() {
           </span>
         </div>
 
-        {/* Divisor vertical */}
+        {/* divisor vertical */}
         <div className="hidden md:block w-px self-stretch bg-outline-variant/30 mx-10" aria-hidden="true" />
 
-        {/* Endereço + Redes */}
+        {/* endereço + redes */}
         <div className="flex flex-col gap-4 flex-1">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8">
-            {/* Endereço */}
+            {/* endereço */}
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-base">location_on</span>
               <span className="font-body-sm text-body-sm text-on-surface-variant">
                 Rodovia Marechal Rondon Km 524
               </span>
             </div>
-            {/* Telefone */}
+            {/* telefone */}
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-base">phone</span>
               <a href="tel:1836383050" className="font-label-data text-label-data text-on-surface hover:text-primary transition-colors">
@@ -1632,13 +1630,15 @@ function Footer() {
             </div>
           </div>
 
-          {/* Ícones sociais */}
+          {/* ícones sociais */}
           <div className="flex items-center gap-3">
             {sociais.map((s) => (
               <a
                 key={s.label}
                 href={s.href}
                 aria-label={s.label}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-9 h-9 rounded-full bg-surface-container border border-outline-variant/30 flex items-center justify-center text-on-surface-variant hover:border-primary hover:text-primary hover:bg-surface-container-high transition-all"
               >
                 <span className="material-symbols-outlined text-base">{s.icon}</span>
@@ -1648,7 +1648,7 @@ function Footer() {
         </div>
       </div>
 
-      {/* Faixa de copyright */}
+      {/* faixa de copyright */}
       <div className="border-t border-outline-variant/20 px-margin-edge py-4">
         <div className="max-w-container-max mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <p className="font-body-sm text-body-sm text-on-surface-variant/60">
@@ -1664,7 +1664,7 @@ function Footer() {
   );
 }
 
-// 9. HOME PAGE (COMBINAÇÃO)
+// 9. home page (combinação)
 function Home({ onReservar }) {
   useScrollReveal();
 
@@ -1673,14 +1673,14 @@ function Home({ onReservar }) {
       <Hero onReservar={onReservar} />
       <Sessoes />
       <Features />
-      <Precos />
+      <Precos onReservar={onReservar} />
       <Rankings />
       <Sobre />
     </main>
   );
 }
 
-// --- CORE APP ---
+// --- core app ---
 function App() {
   const [cadastroOpen, setCadastroOpen] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -1712,7 +1712,7 @@ function App() {
   );
 }
 
-// --- ERROR BOUNDARY ---
+// --- error boundary ---
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -1765,7 +1765,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// --- MOUNT ---
+// --- mount ---
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
