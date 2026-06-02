@@ -292,6 +292,7 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
       : [{ kart: '', nome: '' }, { kart: '', nome: '' }]
   );
   const pilotosCadastrados = JSON.parse(localStorage.getItem('sp_pilotos') || '[]');
+  const kartsCadastrados = JSON.parse(localStorage.getItem('sp_frota') || '[]');
 
   const addPiloto = () => setPilotos(p => [...p, { kart: '', nome: '' }]);
   const removePiloto = (i) => setPilotos(p => p.filter((_, idx) => idx !== i));
@@ -339,10 +340,13 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial }) {
           <datalist id="pilotos-cadastrados">
             {pilotosCadastrados.map(p => <option key={p.id} value={p.nome} />)}
           </datalist>
+          <datalist id="karts-frota">
+            {kartsCadastrados.map(k => <option key={k.id} value={String(k.numero)} />)}
+          </datalist>
           {pilotos.map((p, i) => (
             <div key={i} className="flex items-center gap-2">
               <input type="text" value={p.kart} onChange={e => update(i, 'kart', e.target.value)}
-                placeholder="Kart" className="modal-input" style={{ width: '64px', flexShrink: 0 }} />
+                placeholder="Kart" list="karts-frota" className="modal-input" style={{ width: '64px', flexShrink: 0 }} />
               <input type="text" value={p.nome} onChange={e => update(i, 'nome', e.target.value)}
                 placeholder="Nome do piloto" list="pilotos-cadastrados" className="modal-input flex-1" />
               {pilotos.length > 1 && (
@@ -713,6 +717,7 @@ function Agenda() {
   const [formNome, setFormNome] = useState('');
   const [slotParaIniciar, setSlotParaIniciar] = useState(null);
   const [, forceUpdate] = useState(0);
+  const pilotosCadastrados = JSON.parse(localStorage.getItem('sp_pilotos') || '[]');
 
   const reload = () => forceUpdate(x => x + 1);
 
@@ -888,10 +893,13 @@ function Agenda() {
                         {/* adicionar piloto */}
                         {!cheio && (
                           <div className="flex items-center gap-2">
+                            <datalist id="pilotos-agenda">
+                              {pilotosCadastrados.map(p => <option key={p.id} value={p.nome} />)}
+                            </datalist>
                             <input type="text" value={formNome}
                               onChange={e => setFormNome(e.target.value)}
                               onKeyDown={e => e.key === 'Enter' && addPiloto(hora, pista.id)}
-                              placeholder="Adicionar piloto…" className="modal-input flex-1"
+                              placeholder="Adicionar piloto…" list="pilotos-agenda" className="modal-input flex-1"
                               autoFocus />
                             <button onClick={() => addPiloto(hora, pista.id)}
                               className="flex items-center gap-1 bg-primary-container px-3 py-2 text-white transition-opacity hover:opacity-90 flex-shrink-0"
