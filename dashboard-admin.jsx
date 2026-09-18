@@ -1372,7 +1372,10 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
   const set = field => e => { setForm(p => ({ ...p, [field]: e.target.value })); setErros(p => ({ ...p, [field]: '' })); };
 
   const gerarSenhaAleatoria = () => {
-    const s = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&';
+    const arr = new Uint8Array(12);
+    crypto.getRandomValues(arr);
+    const s = Array.from(arr).map(x => chars[x % chars.length]).join('');
     setForm(p => ({ ...p, senha: s }));
     setGerarSenha(true);
     setSenhaVisivel(true);
