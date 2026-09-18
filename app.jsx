@@ -1,6 +1,6 @@
 // =========================================================
 // app.jsx — Speed Park
-// lóigca react do projeto unificada pra execução no navegador.
+// Lógica React do projeto unificada para execução no navegador.
 // =========================================================
 
 const { useState, useEffect, useRef, useCallback } = React;
@@ -53,6 +53,7 @@ function calcCategoria(nascimento) {
   const nasc = new Date(nascimento + 'T12:00:00');
   let idade = hoje.getFullYear() - nasc.getFullYear();
   if (hoje < new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate())) idade--;
+  if (idade < 7) return 'kids';
   return idade <= 13 ? 'junior' : 'open';
 }
 function auth_getSession() {
@@ -1579,7 +1580,7 @@ function Sobre() {
 // 8. footer
 function Footer() {
   const sociais = [
-    { icon: 'chat',         label: 'WhatsApp',  href: 'https://api.whatsapp.com/send?phone=551836383050&text=Ol%C3%A1,%20estou%20precisando%20de%20informa%C3%A7%C3%B5es' },
+    { icon: 'chat', label: 'WhatsApp', href: 'https://api.whatsapp.com/send?phone=551836383050&text=Ol%C3%A1,%20estou%20precisando%20de%20informa%C3%A7%C3%B5es' },
     { icon: 'photo_camera', label: 'Instagram', href: 'https://www.instagram.com/speedpark.oficial/?hl=pt' },
   ];
 
@@ -1680,7 +1681,7 @@ function App() {
   const [reservarOpen, setReservarOpen] = useState(false);
 
   const openCadastro = useCallback(() => { setLoginOpen(false); setReservarOpen(false); setCadastroOpen(true); }, []);
-  const openLogin    = useCallback(() => { setCadastroOpen(false); setReservarOpen(false); setLoginOpen(true); }, []);
+  const openLogin = useCallback(() => { setCadastroOpen(false); setReservarOpen(false); setLoginOpen(true); }, []);
   const openReservar = useCallback(() => { setCadastroOpen(false); setLoginOpen(false); setReservarOpen(true); }, []);
 
   const handleLogin = useCallback((user) => {
@@ -1698,9 +1699,9 @@ function App() {
       <Navbar onOpenCadastro={openCadastro} onOpenLogin={openLogin} />
       <Home onReservar={openReservar} />
       <Footer />
-      {reservarOpen  && <ModalReservar onClose={() => setReservarOpen(false)} onLogin={openLogin} onCadastro={openCadastro} />}
-      {cadastroOpen  && <CadastroPiloto onClose={() => setCadastroOpen(false)} onSuccess={handleCadastroSuccess} />}
-      {loginOpen     && <ModalLogin onClose={() => setLoginOpen(false)} onLogin={handleLogin} onOpenCadastro={openCadastro} />}
+      {reservarOpen && <ModalReservar onClose={() => setReservarOpen(false)} onLogin={openLogin} onCadastro={openCadastro} />}
+      {cadastroOpen && <CadastroPiloto onClose={() => setCadastroOpen(false)} onSuccess={handleCadastroSuccess} />}
+      {loginOpen && <ModalLogin onClose={() => setLoginOpen(false)} onLogin={handleLogin} onOpenCadastro={openCadastro} />}
     </>
   );
 }
@@ -1723,15 +1724,15 @@ class ErrorBoundary extends React.Component {
   render() {
     if (!this.state.hasError) return this.props.children;
     const s = {
-      page:    { minHeight: '100vh', background: '#051424', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: 'Hanken Grotesk, sans-serif' },
-      card:    { maxWidth: '480px', width: '100%', border: '1px solid rgba(170,136,140,0.2)', background: '#122131', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' },
-      tag:     { color: '#d91e5b', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', margin: 0 },
-      title:   { fontFamily: 'Anybody, sans-serif', fontSize: '28px', fontWeight: '800', fontStyle: 'italic', color: '#d4e4fa', lineHeight: '1.2', margin: 0 },
-      desc:    { fontSize: '14px', color: '#e3bdc2', lineHeight: '1.6', margin: 0 },
-      pre:     { marginTop: '0.75rem', fontSize: '11px', color: '#ffb4ab', background: '#010f1f', padding: '0.75rem', overflowX: 'auto', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+      page: { minHeight: '100vh', background: '#051424', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: 'Hanken Grotesk, sans-serif' },
+      card: { maxWidth: '480px', width: '100%', border: '1px solid rgba(170,136,140,0.2)', background: '#122131', padding: '2.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' },
+      tag: { color: '#d91e5b', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', margin: 0 },
+      title: { fontFamily: 'Anybody, sans-serif', fontSize: '28px', fontWeight: '800', fontStyle: 'italic', color: '#d4e4fa', lineHeight: '1.2', margin: 0 },
+      desc: { fontSize: '14px', color: '#e3bdc2', lineHeight: '1.6', margin: 0 },
+      pre: { marginTop: '0.75rem', fontSize: '11px', color: '#ffb4ab', background: '#010f1f', padding: '0.75rem', overflowX: 'auto', fontFamily: 'JetBrains Mono, monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
       summary: { fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', color: '#aa888c', cursor: 'pointer', userSelect: 'none' },
-      row:     { display: 'flex', gap: '0.75rem' },
-      btnPrimary:   { flex: 1, background: '#d91e5b', color: '#fff', border: 'none', padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '12px', fontWeight: '700', fontFamily: 'Hanken Grotesk, sans-serif', letterSpacing: '0.1em' },
+      row: { display: 'flex', gap: '0.75rem' },
+      btnPrimary: { flex: 1, background: '#d91e5b', color: '#fff', border: 'none', padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '12px', fontWeight: '700', fontFamily: 'Hanken Grotesk, sans-serif', letterSpacing: '0.1em' },
       btnSecondary: { flex: 1, background: 'transparent', color: '#9bccf6', border: '1px solid rgba(155,204,246,0.3)', padding: '0.75rem 1rem', cursor: 'pointer', fontSize: '12px', fontWeight: '700', fontFamily: 'Hanken Grotesk, sans-serif', letterSpacing: '0.1em' },
     };
     return (
