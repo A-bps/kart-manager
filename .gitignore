@@ -1,0 +1,16 @@
+# Senha do banco: nao versionar (use o .example como modelo)
+speedpark-api/src/main/resources/application.properties
+
+# Config do MCP com a API key do Postman
+.mcp.json
+
+# Arquivos gerados
+target/
+node_modules/
+
+# IDEs / SO
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
