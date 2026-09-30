@@ -6,7 +6,7 @@ spring.datasource.username=sa
 spring.datasource.password=SUA_SENHA_AQUI
 spring.jpa.database-platform=org.hibernate.dialect.SQLServerDialect
 
-spring.jpa.hibernate.ddl-auto=none
+spring.jpa.hibernate.ddl-auto=update
 spring.jpa.open-in-view=false
 
 spring.servlet.encoding.charset=UTF-8
