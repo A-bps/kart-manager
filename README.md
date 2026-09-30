@@ -1,210 +1,174 @@
-# 🏎‍🟀 Speed Park — Sistema de Kartódromo
+# 🏎️ Speed Park — Sistema de Kartódromo
 
-Uma landing page interativa e de alta performance desenvolvida para o *Speed Park*, a pista de kart mais rápida e tecnológica da região.
+Sistema web para o kartódromo **Speed Park**, composto por três partes:
 
-Este projeto foi construído com foco em *simplicidade, performance e facilidade de avaliação, utilizando uma arquitetura com **frontend estático* e um *backend em Java orientado a objetos*, responsável por representar as principais regras de negócio de um kartódromo.
+- **Frontend** — site institucional + painel do piloto + painel administrativo (React via CDN, sem build).
+- **Backend** — API REST em **Java 21 / Spring Boot** (`speedpark-api`).
+- **Banco de dados** — **Microsoft SQL Server**, com modelagem relacional documentada em `Banco-Kartodromo/`.
+
+> ⚠️ **Estado atual:** o frontend ainda **não consome a API** — os dados das telas (pilotos, reservas, frota, faturamento) ficam no `localStorage` do navegador. A API e o banco funcionam de forma independente e podem ser testados pelo Postman.
 
 ---
 
-## 🚀 Tecnologias Utilizadas
+## 🚀 Tecnologias
 
-### Frontend
+| Camada | Tecnologias |
+|---|---|
+| Frontend | HTML5, React 18, Babel Standalone, Tailwind CSS v3, Bootstrap 5.3, CSS (`style.css`) — tudo via CDN |
+| Backend | Java 21, Spring Boot 4, Spring Web MVC, Spring Data JPA (Hibernate), Lombok, Maven Wrapper |
+| Banco | Microsoft SQL Server, driver `mssql-jdbc` |
 
-O frontend utiliza bibliotecas modernas injetadas diretamente via *CDN (Content Delivery Network)*:
+---
 
-* *Estrutura Base:* HTML5 Semântico
-* *Interface (UI):* [React 18](https://react.dev/)
-* *Transpilação:* [Babel Standalone](https://babeljs.io/docs/babel-standalone)
-* *Estilização e Layout:*
-  * [Tailwind CSS v3](https://tailwindcss.com/) (motor de utilitários CSS configurado por script dinâmico)
-  * [Bootstrap 5.3](https://getbootstrap.com/) (sistema de grid responsivo)
-  * CSS Vanilla (style.css) para micro-interações, design brutalista e efeitos de Scroll Reveal.
+## 📂 Estrutura do Projeto
 
-### Backend
+```text
+Projeto-Kartodromo/
+├── index.html / app.jsx                  # Site principal (home, baterias, preços, rankings, login)
+├── dashboard-piloto.html / .jsx          # Cockpit do piloto (agendamentos, histórico)
+├── dashboard-admin.html / .jsx           # Painel administrativo (agenda, frota, corridas, financeiro)
+├── utils.js                              # Funções compartilhadas do frontend
+├── style.css                             # Estilos customizados e animações
+├── src/assets/images/                    # Logo e imagens
+├── Banco_de_dados-Kartodromo.sql         # Script de criação do banco
+├── Banco-Kartodromo/                     # Documentação do banco (DER, mapeamento, análises)
+└── speedpark-api/                        # API REST Spring Boot
+    └── src/main/java/com/fatec/speedpark/
+        ├── controllers/                  # Endpoints REST
+        ├── services/                     # Regras de negócio
+        ├── repositories/                 # Acesso ao banco (JPA)
+        ├── entities/                     # Tabelas mapeadas
+        ├── dto/                          # Objetos de entrada das requisições
+        └── exceptions/                   # Tratamento global de erros
+```
 
-O backend foi desenvolvido em *Java, com foco em **Programação Orientada a Objetos (POO)*, validações de regras de negócio e testes manuais via console.
+---
 
-* *Linguagem:* Java
-* *Paradigma:* Programação Orientada a Objetos
-* *Execução:* Aplicação de console
-* *Entrada de dados:* Scanner
-* *Manipulação de valores monetários:* BigDecimal
-* *Manipulação de datas e horários:* LocalDate e LocalTime
-* *Persistência:* Não aplicado ao banco de dados; os dados são trabalhados em memória durante a execução
-* *Dependências externas:* Não há dependências obrigatórias no projeto
+## 🖥️ Como Executar o Frontend
 
-### Banco de Dados
+**Pré-requisitos:** internet (para as CDNs), VS Code com a extensão **Live Server**.
 
-O sistema utiliza um banco de dados relacional desenvolvido em SQL Server, responsável pelo armazenamento e gerenciamento das informações do kartódromo.
+1. Abra a pasta `Projeto-Kartodromo` no VS Code.
+2. Abra o `index.html` e clique em **Go Live** (canto inferior direito).
+3. O site abre em `http://127.0.0.1:5500`.
 
-SGBD: Microsoft SQL Server
-Ferramenta utilizada: SQL Server Management Studio 22
-Linguagem: T-SQL
-Modelagem: Modelo Lógico Relacional
-Relacionamentos: Modelo relacional com tabelas associativas e relacionamentos N:N
-Integridade: Utilização de PRIMARY KEY, FOREIGN KEY, UNIQUE e NOT NULL
-Identificação automática: IDENTITY
-Organização: Constraints nomeadas para padronização e integridade referencial
-## 🛠️ Como Executar Localmente o Frontend
-
-Como o frontend foi projetado para rodar sem servidor backend ou empacotador (bundler), o processo de execução é imediato e descomplicado.
-
-### 📋 Pré-requisitos
-
-* Uma *conexão de internet ativa* para carregamento do React, Tailwind e Babel via CDN.
-* O editor *Visual Studio Code (VS Code)*.
-* A extensão *Live Server* instalada no VS Code.
-
-### 🚦 Passo a Passo
-
-1. Abra a pasta principal do projeto (Projeto-Kartodromo) no VS Code.
-2. Localize e abra o arquivo index.html.
-3. Clique no botão *"Go Live"* localizado no canto inferior direito do VS Code.
-4. O navegador abrirá automaticamente em http://127.0.0.1:5500 ou porta semelhante.
-
-> *Nota para Avaliadores:* O frontend atua como uma Single Page Application (SPA) estática. Toda a navegação ("Corridas", "Preços", "Rankings") ocorre por meio de âncoras com rolagem suave dentro da mesma página.
+Os painéis são acessados pelo login do site ou diretamente por `dashboard-piloto.html` e `dashboard-admin.html`.
 
 ---
 
 ## ☕ Como Executar o Backend
 
-O backend é uma aplicação Java de console, criada para demonstrar a modelagem das entidades e regras de negócio do sistema de kartódromo.
+**Pré-requisitos:** Java JDK 21 e SQL Server rodando na porta `1433`. Não é preciso instalar o Maven — o projeto usa o Maven Wrapper (`mvnw`).
 
-### 📋 Pré-requisitos
+### 1. Criar o banco
 
-* *Java JDK* instalado na máquina.
-* *Visual Studio Code* com a extensão *Extension Pack for Java* instalada, ou outra IDE compatível com Java.
+No SQL Server Management Studio, crie o banco (só na primeira vez):
 
-### ▶️ Executando pelo VS Code
+```sql
+CREATE DATABASE KartManager;
+```
 
-1. Abra a pasta Inter_BackEnd no VS Code.
-2. Acesse o arquivo:
+As **tabelas são criadas automaticamente** pelo Hibernate ao subir a API (`ddl-auto=update`). Como alternativa, é possível rodar o script `Banco_de_dados-Kartodromo.sql`.
 
-text
-src/TestesManuais.java
+### 2. Configurar a conexão
 
+O arquivo com a senha **não é versionado**. Crie-o a partir do modelo:
 
-3. Clique em *Run* acima do método main, ou execute pela opção de execução da extensão Java.
-4. O terminal exibirá um menu com opções de testes manuais.
+```bash
+cd speedpark-api/src/main/resources
+cp application.properties.example application.properties
+```
 
-### ▶️ Executando pelo terminal
+Edite o `application.properties` e troque `SUA_SENHA_AQUI` pela senha do seu usuário do SQL Server (e o `username`, se não for `sa`).
 
-Dentro da pasta Inter_BackEnd, execute:
+### 3. Subir a API
 
-bash
-javac -d bin src/entities/*.java src/TestesManuais.java
-java -cp bin TestesManuais
+Pela IDE: execute a classe `SpeedparkApiApplication`.
 
+Pelo terminal, dentro de `speedpark-api/`:
 
----
+```bash
+./mvnw spring-boot:run      # Linux/macOS
+mvnw.cmd spring-boot:run    # Windows
+```
 
- ##🧩Funcionalidades do Banco##
-
-O banco permite:
-
-* Cadastro de clientes
-* Cadastro de pistas
-* Controle de corridas
-* Registro de resultados
-* Controle de ranking
-* Controle financeiro
-* Histórico de manutenção
-* Controle de disponibilidade dos karts
-* Relacionamento entre clientes e corridas
-* Relacionamento entre corridas e karts
-
-
-## 🧩 Funcionalidades do Backend
-
-O backend representa as principais entidades de um sistema de kartódromo e aplica validações importantes para o funcionamento das regras de negócio.
-
-### Entidades principais
-
-* *Pessoa:* representa os dados básicos de uma pessoa, como código, nome, CPF, e-mail, telefone e CEP.
-* *Cliente:* representa o cliente do kartódromo, vinculado a uma pessoa e à data de nascimento.
-* *Funcionário:* representa um funcionário responsável por operações do kartódromo.
-* *Gerente:* representa um gerente com salário extra.
-* *Corrida:* representa uma corrida agendada, com número, preço, data, horário, pista e funcionário responsável.
-* *ClienteCorrida:* representa a participação de um cliente em uma corrida, armazenando melhor volta, penalidade, tempo total e posição.
-* *Kart:* representa os karts disponíveis, indisponíveis ou em manutenção.
-* *CorridaKart:* relaciona uma corrida com um kart.
-* *Pagamento:* representa o pagamento de uma corrida, incluindo valor, status, forma de pagamento, cliente e corrida.
-* *Manutenção:* representa uma manutenção realizada em um kart.
-* *Pista:* representa uma pista do kartódromo.
-* *CEP, Cidade e UF:* representam a estrutura de endereço das pessoas cadastradas.
+A API sobe em `http://localhost:8080`.
 
 ---
 
-## ✅ Regras de Negócio e Validações
+## 🔌 Endpoints da API
 
-O backend possui métodos de validação para garantir consistência dos dados informados.
+Todos os recursos seguem o padrão CRUD:
 
-Entre as principais validações implementadas estão:
+| Método | Rota | Ação |
+|---|---|---|
+| `GET` | `/api/{recurso}` | Lista todos |
+| `GET` | `/api/{recurso}/{id}` | Busca por id |
+| `POST` | `/api/{recurso}` | Cria |
+| `PUT` | `/api/{recurso}/{id}` | Atualiza |
+| `DELETE` | `/api/{recurso}/{id}` | Remove |
 
-* Cadastro de pessoa com *CPF obrigatório e único*.
-* Validação de nome, CPF, e-mail, telefone e endereço.
-* Cadastro de cliente com dados pessoais e data de nascimento.
-* Agendamento de corrida com verificação de *conflito de data, horário e pista*.
-* Validação de corrida com preço, data, horário, pista e funcionário responsável.
-* Controle de disponibilidade do kart por meio do estado informado.
-* Validação de pagamento com valor, status, forma de pagamento, cliente e corrida.
-* Geração de comprovante apenas quando o pagamento está com status *"Pago"*.
-* Validação de resultados de corrida, incluindo melhor volta, tempo e posição.
-* Validação de ranking para evitar posições duplicadas na mesma corrida.
-* Validação de manutenção vinculada a um kart.
+| Recurso | Rota | Id |
+|---|---|---|
+| UF | `/api/ufs` | `sigla` |
+| Cidade | `/api/cidades` | `codigo` |
+| CEP | `/api/ceps` | `numero` |
+| Pessoa | `/api/pessoas` | `codigo` |
+| Cliente | `/api/clientes` | `pessoaCodigo` |
+| Funcionário | `/api/funcionarios` | `pessoaCodigo` |
+| Gerente | `/api/gerentes` | `pessoaCodigo` |
+| Pista | `/api/pistas` | `nr` |
+| Kart | `/api/karts` | `codigo` |
+| Manutenção | `/api/manutencoes` | `codigo` |
+| Corrida | `/api/corridas` | `nr` |
+| Pagamento | `/api/pagamentos` | `codigo` |
+| Cliente × Corrida | `/api/clientes-corridas` | `{clienteCodigo}/{corridaNr}` |
+| Corrida × Kart | `/api/corridas-karts` | `{corridaNr}/{kartCodigo}` (sem `PUT`) |
 
----
+### Exemplo
 
-## 🧪 Testes Manuais do Backend
+```bash
+curl -X POST http://localhost:8080/api/ufs \
+  -H "Content-Type: application/json" \
+  -d '{"sigla": "SP", "nome": "São Paulo"}'
 
-A classe TestesManuais.java possui um menu interativo para simular cenários de sucesso e falha no sistema.
+curl http://localhost:8080/api/ufs
+```
 
-Ao executar o backend, o seguinte menu é exibido:
+```javascript
+const res = await fetch("http://localhost:8080/api/ufs");
+console.log(await res.json());
+```
 
-text
-=== Testes Manuais ===
-1) Teste cadastro CPF unico
-2) Teste agendamento com conflito
-3) Teste pagamento e comprovante
-4) Teste disponibilidade de kart
-5) Teste resultados e ranking
-6) Testes de sucesso
-7) Teste guiado por console
-0) Sair
-
-
-### Cenários testados
-
-* *Cadastro com CPF único:* verifica se o sistema bloqueia CPFs duplicados.
-* *Agendamento com conflito:* valida se uma corrida não pode ser marcada na mesma pista, data e horário de outra corrida.
-* *Pagamento e comprovante:* impede a geração de comprovante para pagamento ainda não confirmado.
-* *Disponibilidade de kart:* verifica se o kart está disponível com base no estado informado.
-* *Resultados e ranking:* valida dados de resultado e impede posições duplicadas.
-* *Testes de sucesso:* executa um fluxo válido com cadastro, corrida, pagamento e ranking.
-* *Teste guiado:* permite inserir dados manualmente pelo console.
----
-
-## 🗺️ Funcionalidades e Componentes do Frontend
-
-Toda a lógica do frontend está modularizada dentro do arquivo app.jsx, dividida nos seguintes componentes principais:
-
-* *Navbar:* menu de navegação responsivo com efeito de backdrop-blur e menu sanduíche.
-* *Hero Section:* banner inicial com efeito Parallax vinculado ao movimento do mouse.
-* *Baterias:* cards apresentando as modalidades de corrida.
-* *Diferenciais:* seção baseada em Grid destacando tecnologias e medidas de segurança.
-* *Preços (Planos):* tabela de preços com UI Brutalista e micro-interações.
-* *Rankings:* sistema interativo de abas dinâmicas que filtra tempos, pontuações e posições.
-* *useScrollReveal:* Hook customizado em React integrado à Intersection Observer API.
+```python
+import requests
+print(requests.get("http://localhost:8080/api/ufs").json())
+```
 
 ---
 
-## 🧠 Observações Técnicas
+## 🗄️ Banco de Dados
 
-* O backend não está integrado diretamente ao frontend e ao banco de dados.
-* O projeto backend funciona como uma camada de modelagem e validação das regras de negócio.
-* Os dados são armazenados temporariamente em listas durante a execução dos testes.
-* A estrutura foi pensada para facilitar a avaliação acadêmica, demonstrando organização, encapsulamento, validações e relacionamentos entre classes.
+- **SGBD:** Microsoft SQL Server (T-SQL)
+- **Modelo:** relacional, com tabelas associativas para relacionamentos N:N (cliente × corrida, corrida × kart)
+- **Integridade:** `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, `IDENTITY` e constraints nomeadas
+- **Documentação:** DER e mapeamento em `Banco-Kartodromo/`
+
+Cobre: clientes, funcionários e gerentes, pistas, karts e manutenções, corridas e resultados, pagamentos e endereços (UF, cidade, CEP).
 
 ---
 
-- Desenvolvido como trabalho final com foco em *UI/UX moderna, design responsivo, **Programação Orientada a Objetos* e *arquitetura de código limpa*.
+## 🤝 Fluxo de trabalho (Git)
+
+```bash
+git pull                          # antes de começar
+git add .
+git commit -m "descrição"
+git push                          # ao terminar
+```
+
+Para baixar o projeto em um PC novo, use `git clone https://github.com/A-bps/kart-manager.git` (nunca `git init`).
+
+---
+
+🏎️ Projeto acadêmico — FATEC.
