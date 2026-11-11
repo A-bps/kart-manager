@@ -1,5 +1,6 @@
 package com.fatec.speedpark.controllers;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -37,12 +38,12 @@ public class CepController {
     }
 
     @PostMapping
-    public ResponseEntity<Cep> criar(@RequestBody CepRequest request) {
+    public ResponseEntity<Cep> criar(@Valid @RequestBody CepRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.salvar(request));
     }
 
     @PutMapping("/{numero}")
-    public ResponseEntity<Cep> atualizar(@PathVariable String numero, @RequestBody CepRequest request) {
+    public ResponseEntity<Cep> atualizar(@PathVariable String numero, @Valid @RequestBody CepRequest request) {
         return ResponseEntity.ok(service.atualizar(numero, request));
     }
 

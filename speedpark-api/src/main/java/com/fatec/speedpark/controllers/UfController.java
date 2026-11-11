@@ -1,5 +1,6 @@
 package com.fatec.speedpark.controllers;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -36,12 +37,12 @@ public class UfController {
     }
 
     @PostMapping
-    public ResponseEntity<Uf> criar(@RequestBody Uf uf) {
+    public ResponseEntity<Uf> criar(@Valid @RequestBody Uf uf) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.salvar(uf));
     }
 
     @PutMapping("/{sigla}")
-    public ResponseEntity<Uf> atualizar(@PathVariable String sigla, @RequestBody Uf uf) {
+    public ResponseEntity<Uf> atualizar(@PathVariable String sigla, @Valid @RequestBody Uf uf) {
         return ResponseEntity.ok(service.atualizar(sigla, uf));
     }
 

@@ -1,5 +1,6 @@
 package com.fatec.speedpark.entities;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import jakarta.persistence.Column;
@@ -31,6 +32,12 @@ public class Cliente {
 
     @Column(name = "data_nascimento", nullable = false)
     private LocalDate dataNascimento;
+
+    @Column(name = "altura")
+    private Integer altura;
+
+    @Column(name = "peso", precision = 5, scale = 1)
+    private BigDecimal peso;
 
     public Cliente(Pessoa pessoa, LocalDate dataNascimento) {
         this.pessoa = pessoa;

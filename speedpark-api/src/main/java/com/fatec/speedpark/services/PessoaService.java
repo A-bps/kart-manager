@@ -33,8 +33,12 @@ public class PessoaService {
         if (repository.existsByCpf(request.cpf())) {
             throw new IllegalArgumentException("Ja existe pessoa cadastrada com o CPF: " + request.cpf());
         }
-        Cep cep = buscarCep(request.cepNumero());
-        Pessoa pessoa = new Pessoa(null, request.nome(), request.cpf(), request.email(), request.fone(), cep);
+        Pessoa pessoa = new Pessoa();
+        pessoa.setNome(request.nome());
+        pessoa.setCpf(request.cpf());
+        pessoa.setEmail(request.email());
+        pessoa.setFone(request.fone());
+        pessoa.setCep(buscarCep(request.cepNumero()));
         return repository.save(pessoa);
     }
 
@@ -53,6 +57,9 @@ public class PessoaService {
     }
 
     private Cep buscarCep(String numero) {
+        if (numero == null || numero.isBlank()) {
+            return null;
+        }
         return cepRepository.findById(numero)
                 .orElseThrow(() -> new NoSuchElementException("CEP nao encontrado: " + numero));
     }

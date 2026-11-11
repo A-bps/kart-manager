@@ -6,7 +6,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,7 +17,6 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class Kart {
 
     @Id
@@ -24,9 +24,16 @@ public class Kart {
     @Column(name = "codigo")
     private Integer codigo;
 
+    // numero pintado no kart (aparece na frota do painel)
+    @Column(name = "numero", unique = true)
+    private Integer numero;
+
+    @NotBlank
+    @Size(max = 50)
     @Column(name = "estado", nullable = false, length = 50)
     private String estado;
 
+    @Size(max = 255)
     @Column(name = "historico", length = 255)
     private String historico;
 }

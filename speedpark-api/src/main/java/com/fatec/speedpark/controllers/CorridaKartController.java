@@ -1,5 +1,6 @@
 package com.fatec.speedpark.controllers;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -46,7 +47,7 @@ public class CorridaKartController {
     }
 
     @PostMapping
-    public ResponseEntity<CorridaKart> criar(@RequestBody CorridaKartRequest request) {
+    public ResponseEntity<CorridaKart> criar(@Valid @RequestBody CorridaKartRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.salvar(request));
     }
 

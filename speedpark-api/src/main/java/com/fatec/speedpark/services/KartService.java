@@ -31,6 +31,9 @@ public class KartService {
 
     public Kart atualizar(Integer codigo, Kart dadosAtualizados) {
         Kart kartExistente = buscarPorId(codigo);
+        if (dadosAtualizados.getNumero() != null) {
+            kartExistente.setNumero(dadosAtualizados.getNumero());
+        }
         kartExistente.setEstado(dadosAtualizados.getEstado());
         kartExistente.setHistorico(dadosAtualizados.getHistorico());
         return repository.save(kartExistente);

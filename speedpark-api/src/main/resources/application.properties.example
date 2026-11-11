@@ -1,6 +1,6 @@
 spring.application.name=speedpark-api
 
-spring.datasource.url=jdbc:sqlserver://localhost:1433;databaseName=KartManager;encrypt=true;trustServerCertificate=true;
+spring.datasource.url=jdbc:sqlserver://localhost:1433;databaseName=KartManager;encrypt=true;trustServerCertificate=true;sendTimeAsDatetime=false;
 spring.datasource.driver-class-name=com.microsoft.sqlserver.jdbc.SQLServerDriver
 spring.datasource.username=sa
 spring.datasource.password=SUA_SENHA_AQUI
@@ -11,3 +11,12 @@ spring.jpa.open-in-view=false
 
 spring.servlet.encoding.charset=UTF-8
 spring.servlet.encoding.force=true
+
+# --- login ---
+# chave do token JWT (opcional): sem ela, uma chave aleatoria e gerada a cada subida e o login cai ao reiniciar
+#speedpark.jwt.secret=um_texto_aleatorio_com_32_ou_mais_caracteres
+# conta de administrador (projeto academico: troque se for publicar). A senha deste arquivo vale a cada subida da API
+speedpark.admin.email=admin@speedpark.com
+speedpark.admin.senha=admin123
+# enderecos do front liberados no CORS (Live Server)
+speedpark.cors.origins=http://127.0.0.1:5500,http://localhost:5500

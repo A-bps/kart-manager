@@ -2,11 +2,15 @@ package com.fatec.speedpark.dto;
 
 import java.time.LocalTime;
 
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
 public record ClienteCorridaRequest(
-        Integer clienteCodigo,
-        Integer corridaNr,
+        @NotNull Integer clienteCodigo,
+        @NotNull Integer corridaNr,
         LocalTime melhorVolta,
-        String penalidade,
+        @Size(max = 100) String penalidade,
         LocalTime tempo,
-        Integer posicao) {
+        @Positive Integer posicao) {
 }

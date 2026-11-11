@@ -7,8 +7,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.fatec.speedpark.entities.Pessoa;
 
 public interface PessoaRepository extends JpaRepository<Pessoa, Integer> {
-
     Optional<Pessoa> findByCpf(String cpf);
 
     boolean existsByCpf(String cpf);
+
+    boolean existsByEmailIgnoreCase(String email);
+
+    Optional<Pessoa> findByEmailIgnoreCase(String email);
 }

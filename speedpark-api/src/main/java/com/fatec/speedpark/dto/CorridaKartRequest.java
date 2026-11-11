@@ -1,4 +1,6 @@
 package com.fatec.speedpark.dto;
 
-public record CorridaKartRequest(Integer corridaNr, Integer kartCodigo) {
+import jakarta.validation.constraints.NotNull;
+
+public record CorridaKartRequest(@NotNull Integer corridaNr, @NotNull Integer kartCodigo) {
 }

@@ -1,5 +1,6 @@
 package com.fatec.speedpark.controllers;
 
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -41,12 +42,12 @@ public class CorridaController {
     }
 
     @PostMapping
-    public ResponseEntity<Corrida> criar(@RequestBody CorridaRequest request) {
+    public ResponseEntity<Corrida> criar(@Valid @RequestBody CorridaRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.salvar(request));
     }
 
     @PutMapping("/{nr}")
-    public ResponseEntity<Corrida> atualizar(@PathVariable Integer nr, @RequestBody CorridaRequest request) {
+    public ResponseEntity<Corrida> atualizar(@PathVariable Integer nr, @Valid @RequestBody CorridaRequest request) {
         return ResponseEntity.ok(service.atualizar(nr, request));
     }
 

@@ -1,5 +1,6 @@
 package com.fatec.speedpark.controllers;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -37,12 +38,12 @@ public class GerenteController {
     }
 
     @PostMapping
-    public ResponseEntity<Gerente> criar(@RequestBody GerenteRequest request) {
+    public ResponseEntity<Gerente> criar(@Valid @RequestBody GerenteRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.salvar(request));
     }
 
     @PutMapping("/{pessoaCodigo}")
-    public ResponseEntity<Gerente> atualizar(@PathVariable Integer pessoaCodigo, @RequestBody GerenteRequest request) {
+    public ResponseEntity<Gerente> atualizar(@PathVariable Integer pessoaCodigo, @Valid @RequestBody GerenteRequest request) {
         return ResponseEntity.ok(service.atualizar(pessoaCodigo, request));
     }
 
