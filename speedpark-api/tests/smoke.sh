@@ -92,6 +92,12 @@ t "admin cria kart -> 201" 201 POST /karts "$ADM" "{\"numero\":$((900+SUF%90)),\
 KID=$(j codigo)
 t "numero de kart repetido -> 409" 409 POST /karts "$ADM" "{\"numero\":$((900+SUF%90)),\"estado\":\"pronto\"}"
 t "kart sem estado -> 400" 400 POST /karts "$ADM" '{"numero":950,"estado":""}'
+t "kart muda de estado -> 200" 200 PUT /karts/$KID "$ADM" "{\"numero\":$((900+SUF%90)),\"estado\":\"atencao\"}"
+t "PROCEDURE sp_RegistrarManutencao -> 201" 201 POST /manutencoes "$ADM" "{\"status\":\"aberta\",\"valor\":0,\"kartCodigo\":$KID}"
+MID=$(echo "$BODY" | grep -oE '"codigo":[0-9]+\}$' | grep -oE '[0-9]+')
+req GET /karts/$KID "$ADM"
+echo "$BODY" | grep -q '"estado":"manutencao"' && OK=$((OK+1)) && echo "  ok   a procedure colocou o kart em manutencao" || { FAIL=$((FAIL+1)); echo "  FALHA kart nao foi para manutencao: $BODY"; }
+t "manutencao de kart inexistente -> 404" 404 POST /manutencoes "$ADM" '{"status":"aberta","valor":0,"kartCodigo":99999}'
 
 echo "== Reservas"
 R="{\"data\":\"$DATA\",\"hora\":\"14:00\",\"pistaId\":\"pista3\",\"nome\":\"QA Piloto\",\"formato\":\"tempo\",\"qtd\":10,\"formaPagamento\":\"pix\"}"
@@ -194,7 +200,22 @@ echo "$BODY" | grep -q "\"No_Reserva\":$RVID" || { FAIL=$((FAIL+1)); echo "  FAL
 echo "$BODY" | grep -q '"Forma_Pagamento":"Dinheiro"' || { FAIL=$((FAIL+1)); echo "  FALHA view deveria traduzir a forma de pagamento (dinheiro -> Dinheiro)"; }
 req GET /relatorios/auditoria/reservas "$ADM"
 echo "$BODY" | grep -q "\"idReserva\":$RVID" && OK=$((OK+1)) && echo "  ok   TRIGGER registrou a reserva $RVID no LOG_HistoricoNovaReserva" || { FAIL=$((FAIL+1)); echo "  FALHA trigger nao registrou a reserva $RVID no log"; }
+t "VIEW financeira -> 200" 200 GET /relatorios/financeiro "$ADM"
+echo "$BODY" | grep -q 'Total_Recebido' || { FAIL=$((FAIL+1)); echo "  FALHA view financeira sem a coluna Total_Recebido"; }
+t "VIEW da frota -> 200" 200 GET /relatorios/frota "$ADM"
+echo "$BODY" | grep -q '"Qtd_Manutencoes":1' || { FAIL=$((FAIL+1)); echo "  FALHA view da frota nao mostrou a manutencao do kart QA"; }
+t "FUNCTION agenda do dia -> 200" 200 GET "/relatorios/agenda?data=$DATA" "$ADM"
+echo "$BODY" | grep -q "\"No_Reserva\":$RVID" || { FAIL=$((FAIL+1)); echo "  FALHA agenda nao trouxe a reserva $RVID"; }
+t "agenda com data invalida -> 400" 400 GET "/relatorios/agenda?data=amanha" "$ADM"
+req GET /relatorios/auditoria/karts "$ADM"
+echo "$BODY" | grep -q "\"idKart\":$KID,\"numeroKart\":$((900+SUF%90)),\"estadoAnterior\":\"pronto\",\"estadoNovo\":\"atencao\"" && OK=$((OK+1)) && echo "  ok   TRIGGER registrou pronto -> atencao do kart $KID" || { FAIL=$((FAIL+1)); echo "  FALHA trigger do kart nao registrou: $(echo "$BODY" | cut -c1-200)"; }
+echo "$BODY" | grep -q "\"idKart\":$KID,\"numeroKart\":$((900+SUF%90)),\"estadoAnterior\":\"atencao\",\"estadoNovo\":\"manutencao\"" && OK=$((OK+1)) && echo "  ok   TRIGGER registrou a manutencao feita pela procedure" || { FAIL=$((FAIL+1)); echo "  FALHA trigger nao viu a mudanca feita pela procedure"; }
 t "cancela a reserva do teste -> 204" 204 DELETE /reservas/$RVID "$PIL"
+req GET /relatorios/auditoria/faturamento "$ADM"
+echo "$BODY" | grep -q '"operacao":"CRIADO"' && OK=$((OK+1)) && echo "  ok   TRIGGER registrou o lancamento criado pela procedure" || { FAIL=$((FAIL+1)); echo "  FALHA trigger do financeiro nao registrou: $(echo "$BODY" | cut -c1-200)"; }
+req GET /faturamento "$ADM"
+echo "$BODY" | grep -q "Estorno da reserva $RVID" && OK=$((OK+1)) && echo "  ok   cancelamento pela procedure lancou o estorno no financeiro" || { FAIL=$((FAIL+1)); echo "  FALHA estorno da reserva $RVID nao apareceu no financeiro"; }
+t "cancelar de novo -> 404" 404 DELETE /reservas/$RVID "$PIL"
 
 echo "== CRUD antigo: validacao e 409 no lugar de 500"
 t "pessoa sem nome -> 400" 400 POST /pessoas "$ADM" '{"cpf":"77777777777"}'
@@ -208,6 +229,7 @@ echo "== Limpeza"
 req GET /faturamento "$ADM"
 for f in $(echo "$BODY" | grep -oE '"id":[0-9]+,"data":"[^"]*","valor":[0-9.]+,"descricao":"Reserva[^"]*(QA Piloto|QA Filho)[^"]*"' | grep -o '^"id":[0-9]*' | cut -d: -f2); do curl -s -o /dev/null -X DELETE "$B/faturamento/$f" -H "Authorization: Bearer $ADM"; done
 t "admin apaga piloto QA -> 204" 204 DELETE /pilotos/$PID "$ADM"
+[ -n "$MID" ] && t "apaga a manutencao do teste -> 204" 204 DELETE /manutencoes/$MID "$ADM"
 [ -n "$KID" ] && t "admin apaga kart QA -> 204" 204 DELETE /karts/$KID "$ADM"
 for p in $(curl -s "$B/pilotos" -H "Authorization: Bearer $ADM" | grep -o '"id":[0-9]*,"nome":"QA Dois[^}]*' | grep -o '^"id":[0-9]*' | cut -d: -f2); do curl -s -o /dev/null -X DELETE "$B/pilotos/$p" -H "Authorization: Bearer $ADM"; done
 t "admin nao pode apagar a si mesmo -> 409" 409 DELETE /pilotos/$(curl -s -X POST $B/auth/login -H 'Content-Type: application/json' -d "{\"email\":\"$ADMIN_EMAIL\",\"senha\":\"$ADMIN_SENHA\"}" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2) "$ADM"

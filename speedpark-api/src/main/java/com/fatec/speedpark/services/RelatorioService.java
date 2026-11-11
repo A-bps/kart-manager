@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Consultas que usam os recursos criados no banco (script "ADMINISTRACAO DE BANCO DE DADOS"):
- * view, function que retorna tabela e a tabela de LOG alimentada pela trigger.
+ * views, functions que retornam tabela e as tabelas de LOG alimentadas pelas triggers.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,6 +28,21 @@ public class RelatorioService {
                 "order by Data_Reserva desc, Horario, No_Reserva");
     }
 
+    /** VIEW v_Resumo_Financeiro_SpeedPark (recebido, pendente e ticket medio por mes e forma de pagamento). */
+    public List<Map<String, Object>> financeiro() {
+        return limpar(jdbc.queryForList("select * from dbo.v_Resumo_Financeiro_SpeedPark order by Mes desc, Forma_Pagamento"));
+    }
+
+    /** VIEW v_Frota_SpeedPark (cada kart com manutencoes e gasto). */
+    public List<Map<String, Object>> frota() {
+        return limpar(jdbc.queryForList("select * from dbo.v_Frota_SpeedPark order by Numero_Kart"));
+    }
+
+    /** FUNCTION fc_AgendaDoDia_SpeedPark (function que retorna tabela: reservas de um dia). */
+    public List<Map<String, Object>> agenda(LocalDate data) {
+        return limpar(jdbc.queryForList("select * from dbo.fc_AgendaDoDia_SpeedPark(?) order by Horario, Pista, No_Reserva", data));
+    }
+
     /** FUNCTION fc_RankingPilotos_SpeedPark(minimo de corridas, pista ou null para todas). */
     public List<Map<String, Object>> ranking(int minimoCorridas, String pistaCodigo) {
         return limpar(jdbc.queryForList("select * from dbo.fc_RankingPilotos_SpeedPark(?, ?) order by Pontos desc, Vitorias desc, Piloto",
@@ -37,6 +52,16 @@ public class RelatorioService {
     /** LOG da trigger tg_HistNovaReserva (uma linha para cada reserva criada). */
     public List<Map<String, Object>> auditoriaReservas() {
         return limpar(jdbc.queryForList("select top 200 * from LOG_HistoricoNovaReserva order by idLog desc"));
+    }
+
+    /** LOG da trigger tg_AuditoriaFaturamento (lancamento criado ou alterado, antes e depois). */
+    public List<Map<String, Object>> auditoriaFaturamento() {
+        return limpar(jdbc.queryForList("select top 200 * from LOG_AuditoriaFaturamento order by idLog desc"));
+    }
+
+    /** LOG da trigger tg_HistEstadoKart (cada mudanca de estado de um kart). */
+    public List<Map<String, Object>> auditoriaKarts() {
+        return limpar(jdbc.queryForList("select top 200 * from LOG_HistoricoEstadoKart order by idLog desc"));
     }
 
     // troca java.sql.Date/Time/Timestamp por java.time: o JSON sai como "2026-11-24", "10:00:00" e "2026-11-10T17:07:34"

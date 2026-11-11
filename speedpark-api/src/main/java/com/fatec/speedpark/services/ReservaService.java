@@ -17,7 +17,7 @@ import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+
 
 import com.fatec.speedpark.dto.ReservaRequest;
 import com.fatec.speedpark.dto.ReservaView;
@@ -49,6 +49,7 @@ public class ReservaService {
     private final ClienteRepository clienteRepository;
     private final DependenteRepository dependenteRepository;
     private final JdbcTemplate jdbc;
+    private final Categoria categorias;
 
     // ponytail: findAll + filtro em memoria; paginar por data se a tabela crescer muito
     public List<ReservaView> listar(Authentication auth) {
@@ -93,10 +94,10 @@ public class ReservaService {
                     throw new AccessDeniedException("Este dependente pertence a outro piloto.");
                 }
                 participante = dep.getNome();
-                categoria = Categoria.de(dep.getNascimento());
+                categoria = categorias.de(dep.getNascimento());
             } else {
                 participante = cliente.getPessoa().getNome();
-                categoria = Categoria.de(cliente.getDataNascimento());
+                categoria = categorias.de(cliente.getDataNascimento());
             }
             // cada pista aceita somente a sua categoria (crianca na Open, adulto na Kids...)
             if (!categoria.equals(pista.getCategoria())) {
@@ -131,16 +132,12 @@ public class ReservaService {
                 descricao);
 
         // a procedure devolve a reserva criada (coluna id) ou, se deu erro, NumeroErro e MensagemErro (ja com rollback)
-        Map<String, Object> linha = retorno.get(0);
-        if (linha.containsKey("NumeroErro")) {
-            throw new IllegalStateException("Erro no banco de dados (" + linha.get("NumeroErro") + "): " + linha.get("MensagemErro"));
-        }
-        Integer reservaId = ((Number) linha.get("id")).intValue();
+        Integer reservaId = RetornoProcedure.id(retorno);
         return ReservaView.de(repository.findById(reservaId)
                 .orElseThrow(() -> new NoSuchElementException("Reserva não encontrada: " + reservaId)), true);
     }
 
-    @Transactional
+    // a procedure sp_CancelarReserva_SpeedPark apaga a reserva e lanca o estorno no financeiro, na mesma transacao
     public void cancelar(Integer id, Authentication auth) {
         Reserva reserva = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Reserva não encontrada: " + id));
@@ -149,7 +146,7 @@ public class ReservaService {
         if (!TokenService.ehAdmin(auth) && !dono) {
             throw new AccessDeniedException("Você só pode cancelar as suas reservas.");
         }
-        repository.delete(reserva);
+        RetornoProcedure.id(jdbc.queryForList("exec dbo.sp_CancelarReserva_SpeedPark ?", id));
     }
 
     private void validarDataEHora(LocalDate data, LocalTime hora) {

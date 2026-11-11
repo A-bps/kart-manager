@@ -24,6 +24,7 @@ public class DependenteService {
 
     private final DependenteRepository repository;
     private final ClienteRepository clienteRepository;
+    private final Categoria categorias;
 
     public List<DependenteView> listar(Authentication auth) {
         return repository.findByResponsavel_PessoaCodigoOrderByIdAsc(TokenService.codigo(auth)).stream()
@@ -37,7 +38,7 @@ public class DependenteService {
         d.setResponsavel(responsavel);
         d.setNome(r.nome().trim());
         d.setNascimento(r.nascimento());
-        d.setCategoria(Categoria.de(r.nascimento())); // pela idade, não pelo que o front mandar
+        d.setCategoria(categorias.de(r.nascimento())); // pela idade, não pelo que o front mandar
         d.setAltura(r.altura());
         d.setPeso(r.peso());
         return DependenteView.de(repository.save(d));

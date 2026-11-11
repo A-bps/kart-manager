@@ -15,7 +15,7 @@ import com.fatec.speedpark.services.RelatorioService;
 
 import lombok.RequiredArgsConstructor;
 
-/** Relatorios do admin: lidos da view, da function e do log da trigger do banco (so admin). */
+/** Relatorios do admin: lidos das views, das functions e dos logs das triggers do banco (so admin). */
 @RestController
 @RequestMapping("/api/relatorios")
 @RequiredArgsConstructor
@@ -30,6 +30,22 @@ public class RelatorioController {
         return ResponseEntity.ok(service.reservas(de, ate));
     }
 
+    @GetMapping("/financeiro")
+    public ResponseEntity<List<Map<String, Object>>> financeiro() {
+        return ResponseEntity.ok(service.financeiro());
+    }
+
+    @GetMapping("/frota")
+    public ResponseEntity<List<Map<String, Object>>> frota() {
+        return ResponseEntity.ok(service.frota());
+    }
+
+    @GetMapping("/agenda")
+    public ResponseEntity<List<Map<String, Object>>> agenda(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
+        return ResponseEntity.ok(service.agenda(data == null ? LocalDate.now() : data));
+    }
+
     @GetMapping("/ranking")
     public ResponseEntity<List<Map<String, Object>>> ranking(
             @RequestParam(defaultValue = "1") int minimoCorridas,
@@ -42,4 +58,14 @@ public class RelatorioController {
         return ResponseEntity.ok(service.auditoriaReservas());
     }
 
+
+    @GetMapping("/auditoria/faturamento")
+    public ResponseEntity<List<Map<String, Object>>> auditoriaFaturamento() {
+        return ResponseEntity.ok(service.auditoriaFaturamento());
+    }
+
+    @GetMapping("/auditoria/karts")
+    public ResponseEntity<List<Map<String, Object>>> auditoriaKarts() {
+        return ResponseEntity.ok(service.auditoriaKarts());
+    }
 }

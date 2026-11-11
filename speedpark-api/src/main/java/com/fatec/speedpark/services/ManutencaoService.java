@@ -1,8 +1,11 @@
 package com.fatec.speedpark.services;
 
+import java.sql.Types;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.stereotype.Service;
 
 import com.fatec.speedpark.dto.ManutencaoRequest;
@@ -19,6 +22,7 @@ public class ManutencaoService {
 
     private final ManutencaoRepository repository;
     private final KartRepository kartRepository;
+    private final JdbcTemplate jdbc;
 
     public List<Manutencao> listarTodas() {
         return repository.findAll();
@@ -33,10 +37,13 @@ public class ManutencaoService {
                 .orElseThrow(() -> new NoSuchElementException("Manutencao nao encontrada com o codigo: " + codigo));
     }
 
+    // a procedure sp_RegistrarManutencao_SpeedPark grava a manutencao e poe o kart em manutencao, na mesma transacao
     public Manutencao salvar(ManutencaoRequest request) {
-        Kart kart = buscarKart(request.kartCodigo());
-        Manutencao manutencao = new Manutencao(request.status(), request.valor(), request.formaPagamento(), kart);
-        return repository.save(manutencao);
+        buscarKart(request.kartCodigo());
+        Integer codigo = RetornoProcedure.id(jdbc.queryForList("exec dbo.sp_RegistrarManutencao_SpeedPark ?, ?, ?, ?",
+                request.kartCodigo(), request.status(), request.valor(),
+                new SqlParameterValue(Types.VARCHAR, request.formaPagamento())));
+        return buscarPorId(codigo);
     }
 
     public Manutencao atualizar(Integer codigo, ManutencaoRequest request) {

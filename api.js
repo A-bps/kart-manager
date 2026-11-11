@@ -88,6 +88,11 @@ const Api = (() => {
     async adicionarKart(numero) { await req('POST', '/karts', { numero: Number(numero), estado: 'pronto' }); await carregarFrota(); },
     async statusKart(id, status) {
       const atual = cache.frota.find(k => k.id === id);
+      // colocar em manutencao registra a manutencao (procedure do banco), que ja muda o estado do kart
+      if (status === 'manutencao' && atual && atual.status !== 'manutencao') {
+        await req('POST', '/manutencoes', { status: 'aberta', valor: 0, kartCodigo: id });
+        return carregarFrota();
+      }
       await req('PUT', `/karts/${id}`, { numero: atual && atual.numero, estado: status });
       await carregarFrota();
     },

@@ -4,9 +4,11 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fatec.speedpark.entities.Kart;
 import com.fatec.speedpark.repositories.KartRepository;
+import com.fatec.speedpark.repositories.ManutencaoRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -15,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 public class KartService {
 
     private final KartRepository repository;
+    private final ManutencaoRepository manutencaoRepository;
 
     public List<Kart> listarTodos() {
         return repository.findAll();
@@ -39,8 +42,11 @@ public class KartService {
         return repository.save(kartExistente);
     }
 
+    // o historico de manutencoes do kart sai junto com ele
+    @Transactional
     public void deletar(Integer codigo) {
         Kart kart = buscarPorId(codigo);
+        manutencaoRepository.deleteAll(manutencaoRepository.findByKart_Codigo(codigo));
         repository.delete(kart);
     }
 }

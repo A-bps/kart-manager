@@ -1781,10 +1781,20 @@ function Classificacao() {
 const RELATORIOS = [
   { id: 'reservas', titulo: 'Reservas', origem: 'VIEW v_Relatorio_Reservas_SpeedPark', caminho: 'reservas', periodo: true,
     desc: 'Cada reserva com pista, quem reservou, forma de pagamento, valor e situação.' },
+  { id: 'financeiro', titulo: 'Financeiro por mês', origem: 'VIEW v_Resumo_Financeiro_SpeedPark', caminho: 'financeiro',
+    desc: 'Total recebido, pendente e ticket médio por mês e forma de pagamento.' },
+  { id: 'frota', titulo: 'Situação da frota', origem: 'VIEW v_Frota_SpeedPark', caminho: 'frota',
+    desc: 'Cada kart com estado, quantidade de manutenções e total gasto.' },
+  { id: 'agenda', titulo: 'Agenda do dia', origem: 'FUNCTION fc_AgendaDoDia_SpeedPark', caminho: 'agenda', dia: true,
+    desc: 'Reservas do dia escolhido, com pista e quantos já estão inscritos no mesmo horário.' },
   { id: 'ranking', titulo: 'Ranking de pilotos', origem: 'FUNCTION fc_RankingPilotos_SpeedPark', caminho: 'ranking', ranking: true,
     desc: 'Corridas, vitórias e pontos (estilo F1) de cada piloto, filtrando por mínimo de corridas e por pista.' },
   { id: 'audReservas', titulo: 'Auditoria: reservas', origem: 'TRIGGER tg_HistNovaReserva', caminho: 'auditoria/reservas',
     desc: 'Registro automático do banco a cada reserva criada (quem, quando, usuário do banco).' },
+  { id: 'audFinanceiro', titulo: 'Auditoria: financeiro', origem: 'TRIGGER tg_AuditoriaFaturamento', caminho: 'auditoria/faturamento',
+    desc: 'Registro automático do banco quando um lançamento é criado ou alterado (valor e status antes e depois).' },
+  { id: 'audKarts', titulo: 'Auditoria: karts', origem: 'TRIGGER tg_HistEstadoKart', caminho: 'auditoria/karts',
+    desc: 'Registro automático do banco a cada mudança de estado de um kart.' },
 ];
 
 // formata cada célula conforme o tipo do valor
@@ -1802,6 +1812,7 @@ function Relatorios() {
   const [aba, setAba] = useState('reservas');
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
+  const [dia, setDia] = useState('');
   const [minimo, setMinimo] = useState(1);
   const [pista, setPista] = useState('');
   const [linhas, setLinhas] = useState(null);
@@ -1812,6 +1823,7 @@ function Relatorios() {
     setLinhas(null); setErro('');
     const q = new URLSearchParams();
     if (rel.periodo) { if (de) q.set('de', de); if (ate) q.set('ate', ate); }
+    if (rel.dia && dia) q.set('data', dia);
     if (rel.ranking) { q.set('minimoCorridas', String(minimo || 1)); if (pista) q.set('pista', pista); }
     try { setLinhas(await Api.relatorio(rel.caminho + (q.toString() ? `?${q}` : ''))); }
     catch (e) { setErro(e.message); setLinhas([]); }
@@ -1826,7 +1838,7 @@ function Relatorios() {
       <div>
         <h1 className="font-black italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '32px', lineHeight: '1.2' }}>Relatórios</h1>
         <p className="mt-1 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>
-          Consultas feitas direto pelo banco de dados: view, function e o histórico gravado pela trigger.
+          Consultas feitas direto pelo banco de dados: views, functions e o histórico gravado pelas triggers.
         </p>
       </div>
 
@@ -1842,8 +1854,14 @@ function Relatorios() {
         <p className="text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>{rel.desc}</p>
         <p className="mt-1 text-secondary" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>Origem no banco: {rel.origem}</p>
 
-        {(rel.periodo || rel.ranking) && (
+        {(rel.periodo || rel.ranking || rel.dia) && (
           <div className="mt-4 flex flex-wrap items-end gap-3">
+            {rel.dia && (
+              <div className="flex flex-col gap-1">
+                <label className="text-on-surface-variant" style={lbl}>DIA (vazio = hoje)</label>
+                <input type="date" value={dia} onChange={e => setDia(e.target.value)} className="modal-input" style={{ colorScheme: 'dark' }} />
+              </div>
+            )}
             {rel.periodo && (<>
               <div className="flex flex-col gap-1">
                 <label className="text-on-surface-variant" style={lbl}>DE</label>

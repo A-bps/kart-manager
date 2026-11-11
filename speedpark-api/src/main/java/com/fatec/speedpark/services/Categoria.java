@@ -1,19 +1,23 @@
 package com.fatec.speedpark.services;
 
 import java.time.LocalDate;
-import java.time.Period;
 
-/** Categoria do piloto pela idade: menos de 7 = kids, ate 13 = junior, acima = open. Cada pista aceita uma categoria. */
-public final class Categoria {
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
 
-    private Categoria() {
-    }
+import lombok.RequiredArgsConstructor;
 
-    public static String de(LocalDate nascimento) {
-        int idade = Period.between(nascimento, LocalDate.now()).getYears();
-        if (idade < 7) {
-            return "kids";
-        }
-        return idade <= 13 ? "junior" : "open";
+/**
+ * Categoria do piloto pela idade (menos de 7 = kids, ate 13 = junior, acima = open); cada pista aceita uma categoria.
+ * A regra fica na FUNCTION escalar fc_CategoriaPorIdade_SpeedPark do banco; aqui so a chamamos.
+ */
+@Component
+@RequiredArgsConstructor
+public class Categoria {
+
+    private final JdbcTemplate jdbc;
+
+    public String de(LocalDate nascimento) {
+        return jdbc.queryForObject("select dbo.fc_CategoriaPorIdade_SpeedPark(?)", String.class, nascimento);
     }
 }

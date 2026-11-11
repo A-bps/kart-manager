@@ -577,6 +577,86 @@ select * from v_Relatorio_Reservas_SpeedPark
 go
 
 --============================================================
+-- VIEW: resumo financeiro do Speed Park
+--
+-- Objetivo:
+-- Mostrar, por mês e forma de pagamento, quanto foi recebido,
+-- quanto está pendente e o ticket médio dos lançamentos.
+--============================================================
+
+create view v_Resumo_Financeiro_SpeedPark
+as
+	select
+		format(F.data, 'yyyy-MM')                                    as Mes,
+
+		-- Forma de pagamento traduzida para melhor entendimento
+		case F.forma_pagamento
+			when 'pix'            then 'PIX'
+			when 'cartao_debito'  then 'Cartao de debito'
+			when 'cartao_credito' then 'Cartao de credito'
+			when 'dinheiro'       then 'Dinheiro'
+			else 'Nao informado'
+		end                                                          as Forma_Pagamento,
+
+		count(*)                                                     as Lancamentos,
+		sum(case when F.status = 'pago' then F.valor else 0 end)     as Total_Recebido,
+		sum(case when F.status = 'pendente' then F.valor else 0 end) as Total_Pendente,
+		avg(F.valor)                                                 as Ticket_Medio
+
+	from Faturamento as F
+
+	group by
+		format(F.data, 'yyyy-MM'),
+		F.forma_pagamento
+go
+
+-- Testando a view
+select * from v_Resumo_Financeiro_SpeedPark
+go
+
+--============================================================
+-- VIEW: situação da frota de karts
+--
+-- Objetivo:
+-- Mostrar cada kart com a quantidade de manutenções já feitas,
+-- o total gasto e uma situação traduzida para a equipe.
+--============================================================
+
+create view v_Frota_SpeedPark
+as
+	select
+		K.codigo                       as Codigo,
+		K.numero                       as Numero_Kart,
+		K.estado                       as Estado,
+		count(M.codigo)                as Qtd_Manutencoes,
+		isnull(sum(M.valor), 0)        as Total_Gasto,
+
+		-- Situação do kart traduzida para melhor entendimento
+		case
+			when K.estado = 'manutencao'  then 'Parado para manutencao'
+			when count(M.codigo) >= 3     then 'Disponivel, muitas manutencoes'
+			else 'Disponivel'
+		end                            as Situacao
+
+	from Kart as K
+
+	-- left join: o kart aparece mesmo sem nenhuma manutenção
+	left join Manutencao as M
+		on M.kart_codigo = K.codigo
+
+	where K.numero is not null
+
+	group by
+		K.codigo,
+		K.numero,
+		K.estado
+go
+
+-- Testando a view
+select * from v_Frota_SpeedPark
+go
+
+--============================================================
 -- PROCEDURE: cadastrar uma nova reserva no sistema Speed Park
 --
 -- Objetivo:
@@ -710,6 +790,269 @@ select * from Reserva
 go
 
 select * from Faturamento
+go
+
+--============================================================
+-- PROCEDURE: cancelar uma reserva
+--
+-- Objetivo:
+-- Cancelar a reserva e, se ela foi paga, lançar o estorno
+-- no financeiro, na mesma transação.
+--============================================================
+
+create procedure sp_CancelarReserva_SpeedPark
+(
+    @id int
+)
+as
+begin
+
+    set nocount on
+
+    begin try
+
+        begin tran
+
+        declare @valor decimal(19,2)
+        declare @forma varchar(30)
+        declare @descricao varchar(200)
+
+        select
+            @valor     = R.valor,
+            @forma     = R.forma_pagamento,
+            @descricao = 'Estorno da reserva ' + cast(R.id as varchar(10)) + ' - ' + R.participante
+        from Reserva R
+        where R.id = @id
+
+        delete from Reserva
+        where id = @id
+
+        -- reserva paga: devolve o valor (lançamento negativo)
+        if @valor is not null
+        begin
+            insert into Faturamento
+            (
+                data,
+                valor,
+                descricao,
+                forma_pagamento,
+                status
+            )
+            values
+            (
+                cast(getdate() as date),
+                @valor * -1,
+                @descricao,
+                @forma,
+                'pago'
+            )
+        end
+
+        select @id as id
+
+        commit tran
+
+    end try
+
+    begin catch
+
+        if @@trancount > 0
+            rollback tran
+
+        select
+            error_number() as NumeroErro,
+            error_message() as MensagemErro
+
+    end catch
+
+end
+go
+
+--============================================================
+-- testando a procedure
+--============================================================
+
+exec sp_CancelarReserva_SpeedPark 1
+go
+
+select * from Reserva
+go
+
+select * from Faturamento
+go
+
+--============================================================
+-- PROCEDURE: registrar uma manutenção de kart
+--
+-- Objetivo:
+-- Cadastrar a manutenção e colocar o kart em manutenção,
+-- na mesma transação.
+--============================================================
+
+create procedure sp_RegistrarManutencao_SpeedPark
+(
+    @kartCodigo     int,
+    @status         varchar(50),
+    @valor          decimal(19,2),
+    @formaPagamento varchar(50)
+)
+as
+begin
+
+    set nocount on
+
+    begin try
+
+        begin tran
+
+        insert into Manutencao
+        (
+            status,
+            valor,
+            forma_pagamento,
+            kart_codigo
+        )
+        values
+        (
+            @status,
+            @valor,
+            @formaPagamento,
+            @kartCodigo
+        )
+
+        declare @idManutencao int
+
+        set @idManutencao = scope_identity()
+
+        update Kart
+        set estado = 'manutencao'
+        where codigo = @kartCodigo
+
+        select @idManutencao as id
+
+        commit tran
+
+    end try
+
+    begin catch
+
+        if @@trancount > 0
+            rollback tran
+
+        select
+            error_number() as NumeroErro,
+            error_message() as MensagemErro
+
+    end catch
+
+end
+go
+
+--============================================================
+-- testando a procedure
+--============================================================
+
+exec sp_RegistrarManutencao_SpeedPark 1, 'aberta', 0, null
+go
+
+select * from Manutencao
+go
+
+select * from Kart
+go
+
+--============================================================
+-- FUNCTION: categoria do piloto pela idade
+-- TIPO: SCALAR FUNCTION (retorna uma variável)
+-- OBJETIVO:
+-- Receber a data de nascimento e devolver a categoria:
+-- menos de 7 anos = kids, de 7 a 13 = junior, 14 ou mais = open.
+--============================================================
+
+create function fc_CategoriaPorIdade_SpeedPark
+(
+	@Nascimento date
+)
+returns varchar(10)
+as
+begin
+
+	declare @Idade int
+	declare @Categoria varchar(10)
+
+	set @Idade = datediff(year, @Nascimento, getdate())
+
+	-- ainda não fez aniversário neste ano
+	if dateadd(year, @Idade, @Nascimento) > cast(getdate() as date)
+		set @Idade = @Idade - 1
+
+	if @Idade < 7
+		set @Categoria = 'kids'
+	else if @Idade <= 13
+		set @Categoria = 'junior'
+	else
+		set @Categoria = 'open'
+
+	return @Categoria
+
+end
+go
+
+--============================================================
+-- TESTANDO A FUNCTION
+--============================================================
+
+select
+	dbo.fc_CategoriaPorIdade_SpeedPark('2020-05-10') as Crianca,
+	dbo.fc_CategoriaPorIdade_SpeedPark('2012-05-10') as Junior,
+	dbo.fc_CategoriaPorIdade_SpeedPark('1990-05-10') as Adulto
+go
+
+--============================================================
+-- FUNCTION: agenda do dia
+-- TIPO: INLINE TABLE VALUED FUNCTION (retorna uma tabela)
+-- OBJETIVO:
+-- Retornar as reservas de um dia, com a pista e a quantidade
+-- de pessoas já inscritas no mesmo horário da pista.
+--============================================================
+
+create function fc_AgendaDoDia_SpeedPark
+(
+	@Data date
+)
+returns table
+as
+return
+(
+	select
+		R.horario       as Horario,
+		P.nome          as Pista,
+		R.participante  as Participante,
+		R.id            as No_Reserva,
+
+		-- quantas reservas existem neste horário nesta pista
+		(select count(*)
+		   from Reserva as R2
+		  where R2.pista_nr = R.pista_nr
+		    and R2.data     = R.data
+		    and R2.horario  = R.horario) as Inscritos,
+
+		P.capacidade    as Capacidade
+
+	from Reserva as R
+
+	inner join Pista as P
+		on R.pista_nr = P.nr
+
+	where R.data = @Data
+)
+go
+
+--============================================================
+-- TESTANDO A FUNCTION
+--============================================================
+
+select * from fc_AgendaDoDia_SpeedPark('2030-01-08') order by Horario
 go
 
 --============================================================
@@ -903,4 +1246,140 @@ go
 -- se a trigger registrou a nova reserva
 
 select * from LOG_HistoricoNovaReserva
+go
+
+
+--============================================================
+-- TRIGGER: auditoria do financeiro
+--
+-- Objetivo:
+-- Registrar em log todo lançamento criado ou alterado
+-- no financeiro (valor e status antes e depois).
+--============================================================
+
+create table LOG_AuditoriaFaturamento
+(
+	idLog          int          not null identity primary key,
+	idFaturamento  int          not null,
+	operacao       varchar(10)  not null,
+	valorAnterior  decimal(19,2),
+	valorNovo      decimal(19,2),
+	statusAnterior varchar(20),
+	statusNovo     varchar(20),
+	data           datetime     not null,
+	usuario        varchar(100) not null
+)
+go
+
+-- Tabela: faturamento
+-- Operação/evento: insert e update
+-- Tipo: AFTER
+
+create trigger tg_AuditoriaFaturamento
+on    Faturamento
+after insert, update
+as
+begin
+	insert into LOG_AuditoriaFaturamento
+	(
+		idFaturamento,
+		operacao,
+		valorAnterior,
+		valorNovo,
+		statusAnterior,
+		statusNovo,
+		data,
+		usuario
+	)
+	select
+		I.id,
+		case when D.id is null then 'CRIADO' else 'ALTERADO' end,
+		D.valor,
+		I.valor,
+		D.status,
+		I.status,
+		GETDATE(),
+		SYSTEM_USER
+	from inserted as I
+	left join deleted as D
+		on D.id = I.id
+end
+go
+
+-- Testar a trigger: lançamento novo e depois alterado
+
+insert into Faturamento (data, valor, descricao, forma_pagamento, status)
+values (getdate(), 50.00, 'Teste da trigger', 'pix', 'pendente')
+go
+
+update Faturamento
+set status = 'pago'
+where descricao = 'Teste da trigger'
+go
+
+select * from LOG_AuditoriaFaturamento
+go
+
+--============================================================
+-- TRIGGER: histórico do estado dos karts
+--
+-- Objetivo:
+-- Registrar em log toda mudança de estado de um kart
+-- (pronto, atenção, manutenção).
+--============================================================
+
+create table LOG_HistoricoEstadoKart
+(
+	idLog          int          not null identity primary key,
+	idKart         int          not null,
+	numeroKart     int,
+	estadoAnterior varchar(50),
+	estadoNovo     varchar(50),
+	data           datetime     not null,
+	usuario        varchar(100) not null
+)
+go
+
+-- Tabela: kart
+-- Operação/evento: update
+-- Tipo: AFTER
+
+create trigger tg_HistEstadoKart
+on    Kart
+after update
+as
+begin
+	insert into LOG_HistoricoEstadoKart
+	(
+		idKart,
+		numeroKart,
+		estadoAnterior,
+		estadoNovo,
+		data,
+		usuario
+	)
+	select
+		I.codigo,
+		I.numero,
+		D.estado,
+		I.estado,
+		GETDATE(),
+		SYSTEM_USER
+	from inserted as I
+	inner join deleted as D
+		on D.codigo = I.codigo
+
+	-- só quando o estado realmente mudou
+	where isnull(D.estado, '') <> isnull(I.estado, '')
+end
+go
+
+-- Testar a trigger: mudar o estado de um kart
+
+update Kart
+set estado = 'atencao'
+where codigo = 1
+go
+
+select * from LOG_HistoricoEstadoKart
 go
