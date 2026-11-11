@@ -1,0 +1,158 @@
+erDiagram
+  Cep {
+    varchar_8 numero PK
+    int cidade_codigo FK
+  }
+  Cidade {
+    int codigo PK
+    varchar_100 nome
+    varchar_2 uf_sigla FK
+  }
+  Cliente {
+    int pessoa_codigo PK,FK
+    date data_nascimento
+    int altura
+    numeric_5_1 peso
+  }
+  Cliente_Corrida {
+    time melhor_volta
+    varchar_100 penalidade
+    int posicao
+    time tempo
+    int cliente_codigo PK,FK
+    int corrida_nr PK,FK
+  }
+  Corrida {
+    int nr PK
+    date data
+    time horario
+    numeric_19_2 preco
+    int funcionario_codigo FK
+    int pista_nr FK
+  }
+  Corrida_Kart {
+    int corrida_nr PK,FK
+    int kart_codigo PK,FK
+  }
+  Dependente {
+    int id PK
+    int altura
+    varchar_20 categoria
+    date nascimento
+    varchar_100 nome
+    numeric_5_1 peso
+    int responsavel_codigo FK
+  }
+  Faturamento {
+    int id PK
+    date data
+    varchar_200 descricao
+    varchar_30 forma_pagamento
+    varchar_20 status
+    numeric_19_2 valor
+  }
+  Funcionario {
+    int pessoa_codigo PK,FK
+    numeric_19_2 salario
+  }
+  Gerente {
+    int pessoa_codigo PK,FK
+    numeric_19_2 salario_extra
+  }
+  Kart {
+    int codigo PK
+    varchar_50 estado
+    varchar_255 historico
+    int numero UK
+  }
+  Manutencao {
+    int codigo PK
+    varchar_50 forma_pagamento
+    varchar_50 status
+    numeric_19_2 valor
+    int kart_codigo FK
+  }
+  Pagamento {
+    int codigo PK
+    varchar_50 forma_pagamento
+    varchar_50 status
+    numeric_19_2 valor
+    int cliente_codigo FK
+    int corrida_nr FK
+  }
+  Pessoa {
+    int codigo PK
+    varchar_11 cpf UK
+    varchar_100 email
+    varchar_20 fone
+    varchar_100 nome
+    varchar_8 cep_numero FK
+    datetime2 criado_em
+    varchar_100 senha_hash
+    varchar_20 perfil
+  }
+  Pista {
+    int nr PK
+    varchar_100 nome
+    int capacidade
+    varchar_20 categoria
+    varchar_20 codigo UK
+    int metros
+    numeric_10_2 preco_por_min
+    numeric_10_2 preco_por_volta
+  }
+  Prova {
+    int id PK
+    int duracao_seg
+    datetime2 encerrada_em
+    datetime2 iniciada_em
+    int numero
+    varchar_10 status
+    int pista_nr FK
+  }
+  Reserva {
+    int id PK
+    datetime2 criada_em
+    date data
+    varchar_30 forma_pagamento
+    varchar_10 formato
+    time horario
+    varchar_100 participante
+    int qtd
+    numeric_19_2 valor
+    int cliente_codigo FK
+    int pista_nr FK
+  }
+  Resultado {
+    int id PK
+    varchar_10 kart
+    varchar_20 melhor_volta
+    varchar_100 penalidades
+    varchar_100 piloto_nome
+    int posicao
+    int prova_id FK
+  }
+  Uf {
+    varchar_2 sigla PK
+    varchar_50 nome
+  }
+  Cidade ||--o{ Cep : "cidade_codigo"
+  Uf ||--o{ Cidade : "uf_sigla"
+  Pessoa ||--o| Cliente : "pessoa_codigo"
+  Cliente ||--o{ Cliente_Corrida : "cliente_codigo"
+  Corrida ||--o{ Cliente_Corrida : "corrida_nr"
+  Funcionario ||--o{ Corrida : "funcionario_codigo"
+  Pista ||--o{ Corrida : "pista_nr"
+  Corrida ||--o{ Corrida_Kart : "corrida_nr"
+  Kart ||--o{ Corrida_Kart : "kart_codigo"
+  Cliente ||--o{ Dependente : "responsavel_codigo"
+  Pessoa ||--o| Funcionario : "pessoa_codigo"
+  Funcionario ||--o| Gerente : "pessoa_codigo"
+  Kart ||--o{ Manutencao : "kart_codigo"
+  Cliente ||--o{ Pagamento : "cliente_codigo"
+  Corrida ||--o{ Pagamento : "corrida_nr"
+  Cep |o--o{ Pessoa : "cep_numero"
+  Pista ||--o{ Prova : "pista_nr"
+  Cliente |o--o{ Reserva : "cliente_codigo"
+  Pista ||--o{ Reserva : "pista_nr"
+  Prova ||--o{ Resultado : "prova_id"

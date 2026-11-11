@@ -47,7 +47,7 @@ Projeto-Kartodromo/
         ├── security/                     # Login JWT, BCrypt e CORS
         ├── config/                       # Dados iniciais (pistas e conta de admin)
         └── exceptions/                   # Tratamento global de erros
-    └── tests/smoke.sh                    # Teste automatizado da API (117 verificações)
+    └── tests/smoke.sh                    # Teste automatizado da API (131 verificações)
 ```
 
 ---
@@ -136,7 +136,7 @@ O login devolve um **token JWT** (válido por 8 h) que deve ir em `Authorization
 | `GET` | `/api/provas/historico` | público | corridas encerradas (alimenta o ranking da página inicial e o histórico do piloto) |
 | `GET/POST/DELETE` | `/api/provas/ativas`, `/api/provas`, `/api/provas/{id}` | admin | corridas em andamento: iniciar (uma por pista) e apagar |
 | `POST` | `/api/provas/{id}/encerrar` | admin | grava o resultado final e move a corrida para o histórico |
-| `GET` | `/api/relatorios/reservas`, `/ranking`, `/auditoria/reservas` | admin | consultas da view, da function e do log da trigger do banco (filtros `de`, `ate`, `minimoCorridas`, `pista`) |
+| `GET` | `/api/relatorios/reservas`, `/financeiro`, `/frota`, `/agenda`, `/ranking`, `/auditoria/reservas`, `/auditoria/faturamento`, `/auditoria/karts` | admin | consultas das views, das functions e dos logs das triggers do banco (filtros `de`, `ate`, `minimoCorridas`, `pista`) |
 | `GET/POST/PUT/DELETE` | `/api/faturamento` | admin | lançamentos financeiros |
 | qualquer | demais rotas abaixo | admin | CRUD completo |
 
@@ -207,7 +207,7 @@ print(requests.get("http://localhost:8080/api/ufs", headers={"Authorization": f"
 
 ### Testes
 
-Com a API no ar, `ADMIN_SENHA='sua_senha' bash speedpark-api/tests/smoke.sh` roda 117 verificações (login, senha esquecida, permissões, validação, reservas, corridas, dependentes, financeiro, relatórios, trigger, erros 409) e apaga os dados que criou.
+Com a API no ar, `ADMIN_SENHA='sua_senha' bash speedpark-api/tests/smoke.sh` roda 131 verificações (login, senha esquecida, permissões, validação, reservas, corridas, dependentes, financeiro, relatórios, triggers, procedures, erros 409) e apaga os dados que criou.
 
 Há também testes unitários do bloqueio de tentativas (`cd speedpark-api && ./mvnw test`), que usam um relógio simulado para provar o desbloqueio sem esperar 15 minutos.
 
@@ -218,24 +218,33 @@ Há também testes unitários do bloqueio de tentativas (`cd speedpark-api && ./
 - **SGBD:** Microsoft SQL Server (T-SQL)
 - **Modelo:** relacional, com tabelas associativas para relacionamentos N:N (cliente × corrida, corrida × kart)
 - **Integridade:** `PRIMARY KEY`, `FOREIGN KEY`, `UNIQUE`, `NOT NULL`, `IDENTITY` e constraints nomeadas
-- **Documentação:** DER e mapeamento em `Banco-Kartodromo/`
+- **Documentação:** DER (`DER-SpeedPark.png`) e Dicionário de Dados (`Dicionario-de-Dados-SpeedPark.md`) em `Banco-Kartodromo/`
 
 Cobre: clientes, funcionários e gerentes, pistas, karts e manutenções, corridas e resultados, pagamentos e endereços (UF, cidade, CEP). Tabelas usadas pelo site: `Reserva`, `Faturamento`, `Prova` (corridas disputadas) e `Resultado` (posição, kart, melhor volta e penalidades de cada piloto), `Dependente` (filhos).
 
 ### Administração de banco de dados (Etapa 3 do Projeto de Extensão)
 
-O relatório de referência pede, no mínimo, **1 procedure, 1 view, 1 trigger e 1 function que retorna tabela**, todas chamadas pelo sistema Java, mais o backup/restore (bônus). O projeto tem exatamente isso, no bloco **"ADMINISTRAÇÃO DE BANCO DE DADOS"** do `Banco_de_dados-Kartodromo.sql` (cabeçalho com **Objetivo** e o teste logo abaixo de cada objeto, como no modelo):
+Requisitos da Etapa 3 e onde cada um está atendido. Os recursos ficam no bloco **"ADMINISTRAÇÃO DE BANCO DE DADOS"** do `Banco_de_dados-Kartodromo.sql` (cabeçalho com **Objetivo** e o teste logo abaixo de cada objeto) e **todos são usados pelo sistema Java**:
 
-| Recurso | Nome | Para que serve | Quem chama no Java |
+| Requisito | Recurso | Para que serve | Quem chama no Java |
 |---|---|---|---|
-| **Procedure** | `sp_CadReserva_SpeedPark` | Cadastra a reserva e o lançamento financeiro na mesma transação (`begin try / begin tran / commit / rollback`); no erro, desfaz tudo e devolve `NumeroErro` e `MensagemErro` | `POST /api/reservas` |
-| **View** | `v_Relatorio_Reservas_SpeedPark` | Consulta com `join`s e `case`: reserva + pista + piloto + forma de pagamento + situação | `GET /api/relatorios/reservas` |
-| **Function (tabela)** | `fc_RankingPilotos_SpeedPark(minCorridas, pista)` | Ranking com corridas, vitórias e pontos estilo F1 | `GET /api/relatorios/ranking` |
-| **Trigger** | `tg_HistNovaReserva` (em `Reserva`, `after insert`) | Grava em `LOG_HistoricoNovaReserva` cada reserva criada | disparada pela reserva feita pelo Java |
+| **3 procedures** (transação programada) | `sp_CadReserva_SpeedPark` | Grava a reserva e o lançamento financeiro na mesma transação | `POST /api/reservas` |
+| | `sp_CancelarReserva_SpeedPark` | Apaga a reserva e lança o estorno no financeiro | `DELETE /api/reservas/{id}` |
+| | `sp_RegistrarManutencao_SpeedPark` | Grava a manutenção e coloca o kart em manutenção | `POST /api/manutencoes` (e "Manutenção" na Frota do admin) |
+| **3 views** (consultas complexas) | `v_Relatorio_Reservas_SpeedPark` | `join`s + `case`: reserva, pista, piloto, pagamento e situação | `GET /api/relatorios/reservas` |
+| | `v_Resumo_Financeiro_SpeedPark` | `group by` por mês e forma de pagamento: recebido, pendente, ticket médio | `GET /api/relatorios/financeiro` |
+| | `v_Frota_SpeedPark` | `left join` + `group by`: karts com manutenções e gasto | `GET /api/relatorios/frota` |
+| **3 triggers** (disparadas por transações do Java) | `tg_HistNovaReserva` (`Reserva`, insert) | Log de cada reserva criada | disparada por `POST /api/reservas` |
+| | `tg_AuditoriaFaturamento` (`Faturamento`, insert/update) | Log de lançamentos criados/alterados (antes e depois) | disparada pelo financeiro e pelas procedures |
+| | `tg_HistEstadoKart` (`Kart`, update) | Log de cada mudança de estado do kart | disparada pela Frota |
+| **3 functions** (variável, tabela e variável tipo tabela) | `fc_CategoriaPorIdade_SpeedPark` (escalar) | Categoria (kids/junior/open) pela data de nascimento | `Categoria.de()` — reservas e dependentes |
+| | `fc_AgendaDoDia_SpeedPark` (tabela, *inline*) | Reservas de um dia com inscritos por horário | `GET /api/relatorios/agenda` |
+| | `fc_RankingPilotos_SpeedPark` (variável tipo tabela, *multi-statement*) | Corridas, vitórias e pontos estilo F1 | `GET /api/relatorios/ranking` |
 
-- As regras de negócio (categoria pela idade, vagas, valor) ficam no Java (`ReservaService`); a procedure só grava, como no exemplo.
-- Tudo aparece na tela do admin em **Relatórios** (view, function e o histórico gravado pela trigger).
+- As telas de **Relatórios** do admin mostram as 3 views, as 2 functions de tabela e os 3 logs das triggers.
+- **DER e Dicionário de Dados:** `Banco-Kartodromo/DER-SpeedPark.png` (fonte `DER-SpeedPark.mmd`) e `Banco-Kartodromo/Dicionario-de-Dados-SpeedPark.md` (colunas, tipos, chaves, referências e restrições, gerados do banco real).
 - Se o banco foi criado só pelo Hibernate (sem o script), a própria API cria os objetos que faltam ao subir (`BancoRecursosInicializador`): ela lê este mesmo script e executa apenas os `create` de objetos que ainda não existem, ignorando os testes.
+- Atenção: o script oficial **não altera** objeto que já existe; para mudar uma procedure/view/function é preciso apagá-la (`drop`) antes.
 
 ### Backup e Restore
 
