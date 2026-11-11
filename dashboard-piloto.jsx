@@ -4,13 +4,13 @@ const { useState, useEffect } = React;
 function auth_getSession() {
   try { return JSON.parse(sessionStorage.getItem('sp_usuario') || 'null'); } catch { return null; }
 }
-function auth_clearSession() { sessionStorage.removeItem('sp_usuario'); }
+function auth_clearSession() { sessionStorage.removeItem('sp_usuario'); sessionStorage.removeItem('sp_token'); }
 function auth_updateSession(u) { sessionStorage.setItem('sp_usuario', JSON.stringify(u)); }
 
 const usuario = auth_getSession();
 if (!usuario || usuario.role !== 'piloto') { window.location.replace('index.html'); }
 
-const HOJE = new Date().toISOString().split('T')[0];
+const HOJE = new Date().toLocaleDateString('sv-SE'); // data local AAAA-MM-DD (mesma que o servidor usa)
 
 function calcCategoria(nascimento) {
   if (!nascimento) return 'open';
@@ -22,13 +22,11 @@ function calcCategoria(nascimento) {
   return idade <= 13 ? 'junior' : 'open';
 }
 
-// TODO: substituir por chamadas API quando backend ficar pronto
-function pilotos_listar() { return JSON.parse(localStorage.getItem('sp_pilotos') || '[]'); }
-function pilotos_salvar(lista) { localStorage.setItem('sp_pilotos', JSON.stringify(lista)); }
-function pilotos_atualizar(id, dados) {
-  const lista = pilotos_listar().map(p => p.id === id ? { ...p, ...dados } : p);
-  pilotos_salvar(lista);
-  auth_updateSession({ ...auth_getSession(), ...dados });
+// Os dados vem da API (api.js): leituras usam o cache, escritas sao async.
+async function pilotos_atualizar(id, dados) {
+  const num = v => (v === '' || v == null ? null : Number(v));
+  const p = await Api.atualizarPerfil(id, { nome: dados.nome.trim(), telefone: dados.telefone, altura: num(dados.altura), peso: num(dados.peso) });
+  auth_updateSession({ ...auth_getSession(), nome: p.nome, telefone: p.telefone, altura: p.altura, peso: p.peso });
 }
 
 // agenda fixa
@@ -54,53 +52,40 @@ function calcPreco(pista, formato, qtd) {
   return formato === 'tempo' ? pista.precoPorMin * qtd : pista.precoPorVolta * qtd;
 }
 
-function reservas_listar() { return JSON.parse(localStorage.getItem('sp_reservas') || '[]'); }
-function reservas_salvar(l) { localStorage.setItem('sp_reservas', JSON.stringify(l)); }
-function reservas_add(d) {
-  const nova = { id: `r${Date.now()}`, ...d };
-  reservas_salvar([...reservas_listar(), nova]);
-  return nova.id;
-}
-function reservas_remover(id) { reservas_salvar(reservas_listar().filter(r => r.id !== id)); }
+function reservas_listar() { return Api.cache.reservas; }
+function reservas_add(d) { return Api.reservar(d); } // devolve a reserva criada (com id)
+function reservas_remover(id) { return Api.cancelarReserva(id); }
 function reservas_do_piloto(pilotoId) { return reservas_listar().filter(r => r.pilotoId === pilotoId); }
 
-function historico_listar() { return JSON.parse(localStorage.getItem('sp_historico') || '[]'); }
+function historico_listar() { return Api.cache.historico; } // corridas encerradas, vindas do banco
 function historico_do_piloto(nome) {
   return historico_listar()
     .filter(c => (c.posicoes || []).some(p => p.nome === nome))
     .sort((a, b) => b.encerradaEm - a.encerradaEm);
 }
 
-function faturamento_registrar(reserva, valor) {
-  const fat = JSON.parse(localStorage.getItem('sp_faturamento') || '[]');
-  fat.push({ id: `f${Date.now()}`, ...reserva, valor, criadoEm: new Date().toISOString() });
-  localStorage.setItem('sp_faturamento', JSON.stringify(fat));
-}
-
-function frota_listar() { return JSON.parse(localStorage.getItem('sp_frota') || '[]'); }
+// o lancamento financeiro da reserva e criado pelo servidor, na mesma transacao da reserva
+function frota_listar() { return Api.cache.frota; }
 function karts_livres() {
   const ativos = frota_listar().filter(k => k.status === 'pronto' || k.status === 'stress').length;
-  const emUso = reservas_listar().reduce((s, r) => s + 1, 0);
-  return Math.max(0, ativos - emUso);
+  return ativos;
 }
 
 // filhos e dependentes de responsaveis
-function filhos_listar(pilotoId) {
-  return JSON.parse(localStorage.getItem(`sp_filhos_${pilotoId}`) || '[]');
+// (vem do banco; a API so devolve os dependentes de quem esta logado)
+function filhos_listar() { return Api.cache.dependentes; }
+function filhos_add(filho) {
+  const num = v => (v === '' || v == null ? null : Number(v));
+  return Api.adicionarDependente({
+    nome: filho.nome.trim(), nascimento: filho.nascimento, categoria: filho.categoria,
+    altura: num(filho.altura), peso: num(filho.peso),
+  });
 }
-function filhos_salvar(pilotoId, lista) {
-  localStorage.setItem(`sp_filhos_${pilotoId}`, JSON.stringify(lista));
-}
-function filhos_add(pilotoId, filho) {
-  filhos_salvar(pilotoId, [...filhos_listar(pilotoId), { id: `f${Date.now()}`, ...filho }]);
-}
-function filhos_remover(pilotoId, filhoId) {
-  filhos_salvar(pilotoId, filhos_listar(pilotoId).filter(f => f.id !== filhoId));
-}
+function filhos_remover(filhoId) { return Api.removerDependente(filhoId); }
 
 
 function DashboardNav({ activeTab, onTabChange }) {
-  const catLabel = { open: 'OPEN', pro: 'PRO', junior: 'JUNIOR' };
+  const catLabel = { open: 'OPEN', junior: 'JUNIOR', kids: 'KIDS' };
   const tabs = [
     { id: 'agendar', label: 'Agendar', icon: 'add_circle' },
     { id: 'minhas', label: 'Minhas Corridas', icon: 'event' },
@@ -127,7 +112,7 @@ function DashboardNav({ activeTab, onTabChange }) {
           <div className="hidden sm:flex flex-col items-end">
             <span className="font-body-sm text-body-sm text-on-surface leading-tight">{usuario.nome}</span>
             <span className="font-label-caps text-xs tracking-wider text-primary">
-              PILOTO · {catLabel[usuario.categoria] || usuario.categoria?.toUpperCase()}
+              PILOTO · {catLabel[calcCategoria(usuario.nascimento)]}
             </span>
           </div>
           <button onClick={() => { auth_clearSession(); window.location.href = 'index.html'; }}
@@ -282,7 +267,12 @@ function Agendar({ onConfirmado }) {
   const [formaPagamento, setFormaPagamento] = useState('');
   const [, forceUpdate] = useState(0);
 
-  const filhos = filhos_listar(usuario.id);
+  const filhos = filhos_listar();
+  // categoria do participante (pela data de nascimento) define em qual pista ele pode correr
+  const filhoSel = pilotoNome === usuario.nome ? null : filhos.find(f => f.nome === pilotoNome);
+  const catPart = calcCategoria(filhoSel ? filhoSel.nascimento : usuario.nascimento);
+  const pistaDaCategoria = PISTAS.find(p => p.categoria === catPart);
+  const escolherParticipante = (nome) => { setPilotoNome(nome); setSlotSel(null); setQtd(null); };
   const horarios = data ? getHorariosDia(data) : [];
   const qtdOpts = formato === 'tempo' ? QTD_TEMPO : QTD_VOLTAS;
   const preco = slotSel ? calcPreco(slotSel.pista, formato, qtd) : 0;
@@ -291,30 +281,38 @@ function Agendar({ onConfirmado }) {
   const mudarFormato = (f) => { setFormato(f); setQtd(null); };
   const mudarData = (d) => { setData(d); setSlotSel(null); setQtd(null); forceUpdate(x => x + 1); };
 
-  const confirmar = () => {
-    if (!pode) return;
-    const id = reservas_add({
-      data,
-      hora: slotSel.hora,
-      pistaId: slotSel.pistaId,
-      nome: pilotoNome.trim(),
-      pilotoId: usuario.id,
-      formato,
-      qtd,
-      formaPagamento,
-      criadaEm: new Date().toISOString(),
-    });
-    faturamento_registrar({ pilotoId: usuario.id, pilotoNome: pilotoNome.trim(), data, hora: slotSel.hora }, preco);
-    onConfirmado({
-      data,
-      horarioHora: slotSel.hora,
-      pilotoNome: pilotoNome.trim(),
-      reservaId: id,
-      formaPagamento,
-      pista: slotSel.pista,
-      formato,
-      qtd,
-    }, null);
+  const [enviando, setEnviando] = useState(false);
+
+  const confirmar = async () => {
+    if (!pode || enviando) return;
+    setEnviando(true);
+    try {
+      // o servidor valida grade, capacidade e calcula o preco; o piloto e identificado pelo token
+      const reserva = await reservas_add({
+        data,
+        hora: slotSel.hora,
+        pistaId: slotSel.pistaId,
+        nome: pilotoNome.trim(),
+        dependenteId: filhoSel ? filhoSel.id : undefined,
+        formato,
+        qtd,
+        formaPagamento,
+      });
+      onConfirmado({
+        data,
+        horarioHora: slotSel.hora,
+        pilotoNome: pilotoNome.trim(),
+        reservaId: reserva.id,
+        formaPagamento,
+        pista: slotSel.pista,
+        formato,
+        qtd,
+      }, null);
+    } catch (e) {
+      apiErro(e);
+      setSlotSel(null);
+      setEnviando(false);
+    }
   };
 
   const inputClass = "w-full bg-surface-dim border-b-2 border-secondary focus:border-primary text-on-surface font-body-md py-3 px-4 transition-colors outline-none";
@@ -350,17 +348,21 @@ function Agendar({ onConfirmado }) {
                 <h2 className="font-headline-sm text-headline-sm text-on-surface uppercase">Quem vai correr?</h2>
               </div>
               <div className="flex flex-wrap gap-3">
-                <button onClick={() => setPilotoNome(usuario.nome)}
+                <button onClick={() => escolherParticipante(usuario.nome)}
                   className={`px-4 py-2 border font-label-caps text-xs transition-colors ${pilotoNome === usuario.nome ? 'bg-primary-container text-white border-primary-container' : 'border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary'}`}>
                   Eu ({usuario.nome.split(' ')[0]})
                 </button>
                 {filhos.map(f => (
-                  <button key={f.id} onClick={() => setPilotoNome(f.nome)}
+                  <button key={f.id} onClick={() => escolherParticipante(f.nome)}
                     className={`px-4 py-2 border font-label-caps text-xs transition-colors ${pilotoNome === f.nome ? 'bg-primary-container text-white border-primary-container' : 'border-outline-variant/40 text-on-surface-variant hover:border-primary hover:text-primary'}`}>
                     {f.nome.split(' ')[0]} <span className="opacity-60">(filho)</span>
                   </button>
                 ))}
               </div>
+              <p className="font-label-caps text-on-surface-variant text-xs mt-4">
+                Categoria: <span className="text-primary">{catPart.toUpperCase()}</span>
+                {pistaDaCategoria && ` — corre na ${pistaDaCategoria.nome}`} (definida pela idade)
+              </p>
             </section>
 
             {/* data */}
@@ -372,7 +374,7 @@ function Agendar({ onConfirmado }) {
               <input type="date" min={HOJE} value={data} onChange={e => mudarData(e.target.value)}
                 style={{ colorScheme: 'dark' }} className={inputClass} />
               {data && (
-                <p className="font-label-caps text-on-surface-variant text-xs mt-2 capitalize">
+                <p className="font-label-caps text-on-surface-variant text-xs mt-2 first-letter:uppercase">
                   {new Date(data + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}
                   {[5, 6].includes(new Date(data + 'T12:00:00').getDay()) && ' — horários estendidos até 22h'}
                 </p>
@@ -389,7 +391,7 @@ function Agendar({ onConfirmado }) {
                 {karts_livres() < 5 && (
                   <div className="flex items-center gap-2 bg-yellow-400/20 border border-yellow-400/40 px-4 py-2 mb-4 text-xs">
                     <span className="material-symbols-outlined text-yellow-400">warning</span>
-                    <span className="text-yellow-600">Apenas {karts_livres()} karts disponíveis no momento</span>
+                    <span className="text-yellow-600">Frota com apenas {karts_livres()} kart{karts_livres() === 1 ? '' : 's'} disponíve{karts_livres() === 1 ? 'l' : 'is'} no momento</span>
                   </div>
                 )}
                 <div className="flex flex-col gap-5">
@@ -398,16 +400,17 @@ function Agendar({ onConfirmado }) {
                       <p className="font-label-caps text-on-surface-variant text-xs mb-2"
                         style={{ fontFamily: 'JetBrains Mono,monospace' }}>{hora}</p>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {PISTAS.filter(p => !p.categoria || p.categoria === calcCategoria(usuario.nascimento)).map(pista => {
+                        {PISTAS.map(pista => {
                           const rs = reservas_do_slot(data, hora, pista.id);
                           const cheio = rs.length >= pista.capacidade;
+                          const categoriaErrada = pista.categoria !== catPart;
                           const passado = data === HOJE && hora <= new Date().toTimeString().slice(0, 5);
                           const sel = slotSel?.hora === hora && slotSel?.pistaId === pista.id;
                           const pct = Math.round(rs.length / pista.capacidade * 100);
                           return (
-                            <button key={pista.id} disabled={cheio || passado}
+                            <button key={pista.id} disabled={cheio || passado || categoriaErrada}
                               onClick={() => setSlotSel(sel ? null : { hora, pistaId: pista.id, pista })}
-                              className={`p-4 border text-left transition-all flex flex-col gap-2 ${passado || cheio ? 'border-outline-variant/10 opacity-40 cursor-not-allowed bg-surface-dim'
+                              className={`p-4 border text-left transition-all flex flex-col gap-2 ${passado || cheio || categoriaErrada ? 'border-outline-variant/10 opacity-40 cursor-not-allowed bg-surface-dim'
                                 : sel ? 'border-primary bg-primary/10'
                                   : 'border-outline-variant/30 bg-surface-container-high hover:border-primary/50'
                                 }`}>
@@ -417,13 +420,15 @@ function Agendar({ onConfirmado }) {
                                 </span>
                                 {sel && <span className="material-symbols-outlined text-primary text-base">check_circle</span>}
                               </div>
-                              <span className="font-label-caps text-on-surface-variant text-xs">{pista.metros}m</span>
+                              <span className="font-label-caps text-on-surface-variant text-xs">
+                                {pista.metros}m · {pista.categoria.toUpperCase()}
+                              </span>
                               <div className="w-full bg-surface-container h-1">
                                 <div className={`h-full ${cheio ? 'bg-error' : pct > 70 ? 'bg-yellow-400' : 'bg-green-400'}`}
                                   style={{ width: `${pct}%` }} />
                               </div>
                               <span className={`font-label-caps text-xs ${passado ? 'text-on-surface-variant' : cheio ? 'text-error' : 'text-on-surface-variant'}`}>
-                                {passado ? 'HORÁRIO PASSADO' : cheio ? 'LOTADA' : `${pista.capacidade - rs.length} vagas`}
+                                {categoriaErrada ? `SÓ CATEGORIA ${pista.categoria.toUpperCase()}` : passado ? 'HORÁRIO PASSADO' : cheio ? 'LOTADA' : `${pista.capacidade - rs.length} vagas`}
                               </span>
                             </button>
                           );
@@ -587,25 +592,19 @@ function MinhasCorridas() {
 
   const reload = () => {
     const minhas = reservas_do_piloto(usuario.id);
-    const horariosTodos = JSON.parse(localStorage.getItem('sp_horarios') || '[]');
     const enriquecidas = minhas
       .map(r => {
-        // Reserva feita pelo fluxo Agendar: tem data/hora/pistaId direto, sem horarioId
-        if (!r.horarioId && r.data && r.hora) {
-          const pista = PISTAS.find(p => p.id === r.pistaId);
-          return {
-            ...r,
-            horario: {
-              data: r.data,
-              hora: r.hora,
-              tipo: pista ? pista.nome : 'Sessão',
-              duracao: r.formato === 'tempo' ? r.qtd : null,
-              valor: pista && r.formato && r.qtd ? calcPreco(pista, r.formato, r.qtd) : null,
-            },
-          };
-        }
-        // Reserva antiga: lookup pelo horarioId
-        return { ...r, horario: horariosTodos.find(h => h.id === r.horarioId) || null };
+        const pista = PISTAS.find(p => p.id === r.pistaId);
+        return {
+          ...r,
+          horario: {
+            data: r.data,
+            hora: r.hora,
+            tipo: pista ? pista.nome : 'Sessão',
+            duracao: r.formato === 'tempo' ? r.qtd : null,
+            valor: r.valor != null ? Number(r.valor) : (pista && r.formato && r.qtd ? calcPreco(pista, r.formato, r.qtd) : null),
+          },
+        };
       })
       .filter(r => r.horario && r.horario.data >= HOJE)
       .sort((a, b) => (a.horario.data + 'T' + a.horario.hora).localeCompare(b.horario.data + 'T' + b.horario.hora));
@@ -614,7 +613,10 @@ function MinhasCorridas() {
 
   useEffect(() => { reload(); }, []);
 
-  const cancelar = (id) => { reservas_remover(id); setPendCancel(null); reload(); };
+  const cancelar = async (id) => {
+    try { await reservas_remover(id); } catch (e) { apiErro(e); }
+    setPendCancel(null); reload();
+  };
 
   return (
     <main className="flex-grow py-12 px-margin-edge w-full max-w-6xl mx-auto">
@@ -787,22 +789,27 @@ function Perfil() {
   });
   const [erros, setErros] = useState({});
   const [salvo, setSalvo] = useState(false);
-  const [filhos, setFilhos] = useState(() => filhos_listar(usuario.id));
+  const [filhos, setFilhos] = useState(() => filhos_listar());
   const [showAddFilho, setShowAddFilho] = useState(false);
   const [formFilho, setFormFilho] = useState({ nome: '', nascimento: '', categoria: '', peso: '', altura: '' });
   const [pendDelFilho, setPendDelFilho] = useState(null);
 
-  const reloadFilhos = () => setFilhos(filhos_listar(usuario.id));
+  const reloadFilhos = () => setFilhos(filhos_listar());
 
   const set = field => e => setForm(p => ({ ...p, [field]: e.target.value }));
 
-  const salvar = () => {
+  const salvar = async () => {
     const e = {};
     if (!form.nome.trim() || form.nome.trim().split(' ').length < 2) e.nome = 'Informe nome e sobrenome';
     if (form.altura && (Number(form.altura) < 100 || Number(form.altura) > 250)) e.altura = 'Altura inválida (100–250 cm)';
     if (form.peso && (Number(form.peso) < 20 || Number(form.peso) > 200)) e.peso = 'Peso inválido (20–200 kg)';
     if (Object.keys(e).length > 0) { setErros(e); return; }
-    pilotos_atualizar(usuario.id, form);
+    try {
+      await pilotos_atualizar(usuario.id, form);
+    } catch (err) {
+      if (err.campos && Object.keys(err.campos).length) setErros(err.campos); else apiErro(err);
+      return;
+    }
     Object.assign(usuario, form);
     setUsuarioAtual({ ...usuarioAtual, ...form });
     setEditando(false);
@@ -811,15 +818,20 @@ function Perfil() {
     setErros({});
   };
 
-  const salvarFilho = () => {
+  const salvarFilho = async () => {
     if (!formFilho.nome.trim() || !formFilho.nascimento || !formFilho.categoria) return;
-    filhos_add(usuario.id, formFilho);
-    setFormFilho({ nome: '', nascimento: '', categoria: '', peso: '', altura: '' });
-    setShowAddFilho(false);
+    try {
+      await filhos_add(formFilho);
+      setFormFilho({ nome: '', nascimento: '', categoria: '', peso: '', altura: '' });
+      setShowAddFilho(false);
+    } catch (e) { apiErro(e); }
     reloadFilhos();
   };
 
-  const removerFilho = (id) => { filhos_remover(usuario.id, id); setPendDelFilho(null); reloadFilhos(); };
+  const removerFilho = async (id) => {
+    try { await filhos_remover(id); } catch (e) { apiErro(e); }
+    setPendDelFilho(null); reloadFilhos();
+  };
 
   const inputClass = "w-full bg-surface-container border border-outline-variant/30 text-on-surface py-3 px-4 focus:border-primary focus:outline-none transition-colors font-body-md text-body-md";
   const labelClass = "block font-label-caps text-label-caps text-on-surface-variant text-xs mb-2";
@@ -935,16 +947,18 @@ function Perfil() {
               </div>
               <div>
                 <label className={labelClass}>DATA DE NASCIMENTO *</label>
-                <input type="date" value={formFilho.nascimento} onChange={e => setFormFilho(f => ({ ...f, nascimento: e.target.value }))} className={inputClass} style={{ colorScheme: 'dark' }} />
+                <input type="date" max={HOJE} value={formFilho.nascimento}
+                  onChange={e => setFormFilho(f => ({ ...f, nascimento: e.target.value, categoria: e.target.value ? calcCategoria(e.target.value) : '' }))}
+                  className={inputClass} style={{ colorScheme: 'dark' }} />
               </div>
               <div>
-                <label className={labelClass}>CATEGORIA *</label>
-                <select value={formFilho.categoria} onChange={e => setFormFilho(f => ({ ...f, categoria: e.target.value }))} className={inputClass}>
-                  <option value="" disabled>Selecione</option>
-                  <option value="kids">Kids — 5 a 6 anos</option>
-                  <option value="junior">Junior — 7 a 12 anos</option>
-                  <option value="open">Open — Amadores</option>
-                </select>
+                <label className={labelClass}>CATEGORIA (automática pela idade)</label>
+                <div className={`${inputClass} flex items-center`}>
+                  {formFilho.categoria
+                    ? <span className="text-primary font-bold">{formFilho.categoria.toUpperCase()}</span>
+                    : <span className="text-on-surface-variant">Informe a data de nascimento</span>}
+                </div>
+                <p className="text-on-surface-variant text-xs mt-1">Kids: menos de 7 anos · Junior: 7 a 13 anos · Open: 14 anos ou mais</p>
               </div>
               <div>
                 <label className={labelClass}>ALTURA (cm)</label>
@@ -1075,4 +1089,4 @@ class ErrorBoundary extends React.Component {
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<React.StrictMode><ErrorBoundary><PilotoDashboard /></ErrorBoundary></React.StrictMode>);
+root.render(<React.StrictMode><ErrorBoundary><Carregador role="piloto"><PilotoDashboard /></Carregador></ErrorBoundary></React.StrictMode>);

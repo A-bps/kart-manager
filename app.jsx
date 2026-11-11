@@ -26,27 +26,7 @@ function useScrollReveal() {
 }
 
 // --- auth utilities ---
-// credenciais temporárias — substituir por autenticação via api quando o backend estiver pronto
-const ADMIN_USER = { email: 'admin@speedpark.com', senha: 'admin123', role: 'admin', nome: 'Administrador Speed Park' };
-
-function auth_salvarPiloto(piloto) {
-  const lista = JSON.parse(localStorage.getItem('sp_pilotos') || '[]');
-  lista.push({ ...piloto, role: 'piloto', id: Date.now(), criadoEm: new Date().toISOString() });
-  localStorage.setItem('sp_pilotos', JSON.stringify(lista));
-}
-function auth_emailExiste(email) {
-  return JSON.parse(localStorage.getItem('sp_pilotos') || '[]').some(p => p.email === email);
-}
-function auth_listarPilotos() {
-  return JSON.parse(localStorage.getItem('sp_pilotos') || '[]');
-}
-function auth_deletarPiloto(id) {
-  localStorage.setItem('sp_pilotos', JSON.stringify(auth_listarPilotos().filter(p => p.id !== id)));
-}
-function auth_login(email, senha) {
-  if (email === ADMIN_USER.email && senha === ADMIN_USER.senha) return ADMIN_USER;
-  return auth_listarPilotos().find(p => p.email === email && p.senha === senha) || null;
-}
+// login e cadastro vao para a API (api.js): nenhuma credencial fica no front
 function calcCategoria(nascimento) {
   if (!nascimento) return 'open';
   const hoje = new Date();
@@ -60,7 +40,7 @@ function auth_getSession() {
   try { return JSON.parse(sessionStorage.getItem('sp_usuario') || 'null'); } catch { return null; }
 }
 function auth_setSession(u) { sessionStorage.setItem('sp_usuario', JSON.stringify(u)); }
-function auth_clearSession() { sessionStorage.removeItem('sp_usuario'); }
+function auth_clearSession() { sessionStorage.removeItem('sp_usuario'); sessionStorage.removeItem('sp_token'); }
 
 // --- componentes ---
 
@@ -79,12 +59,45 @@ function ModalLogin({ onClose, onLogin, onOpenCadastro }) {
     return () => { document.body.classList.remove('modal-open'); window.removeEventListener('keydown', onKey); };
   }, [onClose]);
 
-  const handleSubmit = (e) => {
+  const [enviando, setEnviando] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (enviando) return;
     if (!email || !senha) { setErro('Preencha todos os campos'); return; }
-    const user = auth_login(email.trim(), senha);
-    if (!user) { setErro('E-mail ou senha incorretos'); return; }
-    onLogin(user);
+    setEnviando(true);
+    try {
+      onLogin(await Api.login(email.trim(), senha));
+    } catch (err) {
+      setErro(err.status === 401 ? 'E-mail ou senha incorretos' : err.message);
+      setEnviando(false);
+    }
+  };
+
+  // --- senha esquecida: e-mail + CPF do cadastro + nova senha ---
+  const [modo, setModo] = useState('login'); // 'login' | 'redefinir'
+  const [rd, setRd] = useState({ cpf: '', nova: '', confirmar: '' });
+  const [aviso, setAviso] = useState('');
+  const formatCPF = v => v.replace(/\D/g, '').slice(0, 11)
+    .replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+  const setRdCampo = campo => e => { setRd(p => ({ ...p, [campo]: campo === 'cpf' ? formatCPF(e.target.value) : e.target.value })); setErro(''); };
+  const abrirModo = m => { setModo(m); setErro(''); setAviso(''); };
+
+  const handleRedefinir = async (e) => {
+    e.preventDefault();
+    if (enviando) return;
+    if (!email.trim() || rd.cpf.replace(/\D/g, '').length !== 11) { setErro('Informe o e-mail e o CPF do cadastro'); return; }
+    if (rd.nova.length < 6) { setErro('A nova senha precisa ter no mínimo 6 caracteres'); return; }
+    if (rd.nova !== rd.confirmar) { setErro('As senhas não coincidem'); return; }
+    setEnviando(true);
+    try {
+      await Api.redefinirSenha(email.trim(), rd.cpf, rd.nova);
+      setRd({ cpf: '', nova: '', confirmar: '' }); setSenha(''); setErro('');
+      setModo('login'); setAviso('Senha alterada! Entre com a nova senha.');
+    } catch (err) {
+      setErro(err.message);
+    }
+    setEnviando(false);
   };
 
   return (
@@ -93,13 +106,61 @@ function ModalLogin({ onClose, onLogin, onOpenCadastro }) {
         <div className="flex items-center justify-between px-8 pt-8 pb-6 border-b border-outline-variant/20">
           <div>
             <p className="font-label-caps text-label-caps text-secondary tracking-widest mb-1">SPEED PARK</p>
-            <h2 className="font-headline-md text-headline-md text-on-surface italic uppercase">Entrar</h2>
+            <h2 className="font-headline-md text-headline-md text-on-surface italic uppercase">{modo === 'login' ? 'Entrar' : 'Redefinir senha'}</h2>
           </div>
           <button onClick={onClose} className="w-10 h-10 flex items-center justify-center border border-outline-variant/30 text-on-surface-variant hover:border-primary-container hover:text-primary transition-colors">
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
+        {modo === 'redefinir' ? (
+          <form onSubmit={handleRedefinir} noValidate className="px-8 py-6 modal-field-group">
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Informe o e-mail e o CPF do seu cadastro e escolha uma nova senha.
+            </p>
+            <div>
+              <label className="modal-label">E-mail</label>
+              <input type="email" className="modal-input" placeholder="piloto@email.com"
+                value={email} onChange={e => { setEmail(e.target.value); setErro(''); }} autoComplete="email" />
+            </div>
+            <div>
+              <label className="modal-label">CPF</label>
+              <input type="text" inputMode="numeric" className="modal-input" placeholder="000.000.000-00"
+                value={rd.cpf} onChange={setRdCampo('cpf')} />
+            </div>
+            <div>
+              <label className="modal-label">Nova senha</label>
+              <input type="password" className="modal-input" placeholder="Mínimo 6 caracteres"
+                value={rd.nova} onChange={setRdCampo('nova')} autoComplete="new-password" />
+            </div>
+            <div>
+              <label className="modal-label">Confirmar nova senha</label>
+              <input type="password" className="modal-input" placeholder="Repita a nova senha"
+                value={rd.confirmar} onChange={setRdCampo('confirmar')} autoComplete="new-password" />
+            </div>
+            {erro && (
+              <div className="flex items-center gap-2 bg-error-container/20 border border-error/30 px-4 py-3">
+                <span className="material-symbols-outlined text-base text-error">error</span>
+                <span className="font-body-sm text-body-sm text-error">{erro}</span>
+              </div>
+            )}
+            <button type="submit" className="w-full font-label-caps text-label-caps bg-primary-container text-white py-4 skew-x-m10 brutalist-button hover:bg-primary transition-colors">
+              <span className="inline-block skew-x-10">SALVAR NOVA SENHA</span>
+            </button>
+            <p className="text-center font-body-sm text-body-sm text-on-surface-variant">
+              <button type="button" onClick={() => abrirModo('login')}
+                className="text-secondary hover:text-primary transition-colors underline underline-offset-2">
+                Voltar para o login
+              </button>
+            </p>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit} noValidate className="px-8 py-6 modal-field-group">
+          {aviso && (
+            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/40 px-4 py-3">
+              <span className="material-symbols-outlined text-base text-green-400">check_circle</span>
+              <span className="font-body-sm text-body-sm text-green-400">{aviso}</span>
+            </div>
+          )}
           <div>
             <label className="modal-label">E-mail</label>
             <input type="email" className="modal-input" placeholder="piloto@email.com"
@@ -134,280 +195,20 @@ function ModalLogin({ onClose, onLogin, onOpenCadastro }) {
               Cadastrar-se
             </button>
           </p>
+          <p className="text-center font-body-sm text-body-sm text-on-surface-variant">
+            <button type="button" onClick={() => abrirModo('redefinir')}
+              className="text-secondary hover:text-primary transition-colors underline underline-offset-2">
+              Esqueci minha senha
+            </button>
+          </p>
         </form>
+        )}
       </div>
     </div>
   );
 }
 
 // (DashboardNav, DashboardPiloto e DashboardAdmin ficam em dashboard-piloto.jsx / dashboard-admin.jsx)
-
-// navbar do dashboard — mantida aqui apenas pra não quebrar referências antigas
-function DashboardNav({ usuario, onLogout }) {
-  const catLabel = { open: 'OPEN', junior: 'JUNIOR' };
-  return (
-    <nav className="sticky top-0 z-50 border-b border-outline-variant/30 bg-surface/95 backdrop-blur-md">
-      <div className="flex justify-between items-center w-full px-margin-edge py-4 max-w-container-max mx-auto">
-        <div className="flex items-center gap-4">
-          <img src="src/assets/images/LogoSpeedPark.png" alt="Speed Park" className="h-10 w-10 rounded-full object-cover" />
-          <span className="font-headline-md text-headline-md font-black text-primary italic tracking-tighter">SPEED PARK</span>
-        </div>
-        <div className="flex items-center gap-5">
-          <div className="hidden sm:flex flex-col items-end">
-            <span className="font-body-sm text-body-sm text-on-surface leading-tight">{usuario.nome}</span>
-            <span className={`font-label-caps text-xs tracking-wider ${usuario.role === 'admin' ? 'text-secondary' : 'text-primary'}`}>
-              {usuario.role === 'admin' ? 'ADMINISTRADOR' : `PILOTO · ${catLabel[calcCategoria(usuario.nascimento)] || ''}`}
-            </span>
-          </div>
-          <button onClick={onLogout}
-            className="flex items-center gap-2 font-label-caps text-label-caps text-xs text-on-surface-variant hover:text-primary transition-colors border border-outline-variant/30 hover:border-primary px-4 py-2">
-            <span className="material-symbols-outlined text-base">logout</span>
-            <span className="hidden sm:inline">SAIR</span>
-          </button>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-// dashboard piloto
-function DashboardPiloto({ usuario, onLogout }) {
-  const catLabel = { open: 'Open', junior: 'Junior' };
-  const catColor = { open: 'border-secondary text-secondary', junior: 'border-tertiary text-tertiary' };
-
-  const stats = [
-    { icon: 'flag', label: 'Corridas', valor: '0', sub: 'Nenhuma ainda' },
-    { icon: 'timer', label: 'Melhor Volta', valor: '--:--', sub: 'Faça sua 1ª sessão' },
-    { icon: 'emoji_events', label: 'Pontos', valor: '0', sub: 'Ranking ' + (catLabel[calcCategoria(usuario.nascimento)] || '') },
-    { icon: 'leaderboard', label: 'Posição', valor: '--', sub: 'No ranking global' },
-  ];
-
-  const perfil = [
-    { label: 'E-mail', valor: usuario.email, icon: 'mail' },
-    { label: 'Telefone', valor: usuario.telefone, icon: 'phone' },
-    { label: 'Nascimento', valor: usuario.nascimento ? new Date(usuario.nascimento + 'T12:00:00').toLocaleDateString('pt-BR') : '--', icon: 'cake' },
-    { label: 'CPF', valor: usuario.cpf ? usuario.cpf.replace(/(\d{3})\.\d{3}\.\d{3}-(\d{2})/, '$1.***.***-$2') : '--', icon: 'badge' },
-    { label: 'Altura', valor: usuario.altura ? `${usuario.altura} cm` : '--', icon: 'height' },
-    { label: 'Peso', valor: usuario.peso ? `${usuario.peso} kg` : '--', icon: 'monitor_weight' },
-  ];
-
-  return (
-    <div className="min-h-screen bg-background">
-      <DashboardNav usuario={usuario} onLogout={onLogout} />
-
-      {/* hero */}
-      <section className="bg-surface-container-low border-b border-outline-variant/20 py-12 px-margin-edge relative overflow-hidden">
-        <div className="absolute inset-0 checkered-pattern opacity-10" aria-hidden="true" />
-        <div className="absolute top-0 right-0 w-1/3 h-full bg-primary-container/5 blur-3xl rounded-full" aria-hidden="true" />
-        <div className="max-w-container-max mx-auto relative z-10">
-          <p className="font-label-caps text-label-caps text-secondary tracking-widest mb-2">BEM-VINDO DE VOLTA</p>
-          <h1 className="font-headline-lg text-headline-lg text-on-surface italic uppercase mb-4 leading-tight">
-            {usuario.nome.split(' ')[0]}{' '}
-            <span className="text-primary-container">{usuario.nome.split(' ').slice(1).join(' ')}</span>
-          </h1>
-          <span className={`font-label-caps text-label-caps text-xs px-3 py-1 border skew-x-m10 inline-block ${catColor[calcCategoria(usuario.nascimento)] || 'border-secondary text-secondary'}`}>
-            <span className="inline-block skew-x-10">CATEGORIA {(catLabel[calcCategoria(usuario.nascimento)] || '').toUpperCase()}</span>
-          </span>
-        </div>
-      </section>
-
-      <div className="max-w-container-max mx-auto px-margin-edge py-10 flex flex-col gap-8">
-
-        {/* stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-gutter">
-          {stats.map((s) => (
-            <div key={s.label} className="bg-surface-container border border-secondary/20 p-6 flex flex-col gap-3 hover:border-primary-container/50 transition-colors">
-              <span className="material-symbols-outlined text-secondary text-2xl">{s.icon}</span>
-              <div className="font-display-hero text-on-surface leading-none" style={{ fontSize: '38px' }}>{s.valor}</div>
-              <div>
-                <div className="font-label-caps text-label-caps text-on-surface text-xs">{s.label}</div>
-                <div className="font-body-sm text-body-sm text-on-surface-variant text-xs mt-0.5">{s.sub}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
-          {/* perfil */}
-          <div className="lg:col-span-2 bg-surface-container border border-secondary/20 p-8">
-            <h2 className="font-headline-sm text-headline-sm text-on-surface italic uppercase mb-6 pb-4 border-b border-outline-variant/20 flex items-center gap-3">
-              <span className="material-symbols-outlined text-secondary">person</span>
-              Meu Perfil
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {perfil.map((item) => (
-                <div key={item.label} className="flex items-start gap-3">
-                  <div className="w-8 h-8 border border-secondary/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="material-symbols-outlined text-secondary text-sm">{item.icon}</span>
-                  </div>
-                  <div>
-                    <div className="font-label-caps text-label-caps text-on-surface-variant text-xs mb-0.5">{item.label}</div>
-                    <div className="font-body-md text-body-md text-on-surface">{item.valor}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ações */}
-          <div className="flex flex-col gap-4">
-            <div className="bg-surface-container border border-secondary/20 p-6 flex flex-col gap-4">
-              <h3 className="font-headline-sm text-headline-sm text-on-surface italic uppercase text-sm flex items-center gap-2">
-                <span className="material-symbols-outlined text-secondary text-base">bolt</span>
-                Ações Rápidas
-              </h3>
-              <button onClick={() => window.location.href = 'dashboard-piloto.html'}
-                className="w-full font-label-caps text-label-caps bg-primary-container text-white py-3 skew-x-m10 brutalist-button cta-pulse hover:bg-primary transition-colors text-xs">
-                <span className="inline-block skew-x-10">RESERVAR SESSÃO</span>
-              </button>
-              <button onClick={() => window.location.href = 'index.html'}
-                className="w-full font-label-caps text-label-caps bg-surface border border-secondary text-secondary py-3 skew-x-m10 hover:bg-secondary/10 transition-colors text-xs">
-                <span className="inline-block skew-x-10">VOLTAR AO SITE</span>
-              </button>
-            </div>
-            <div className="bg-surface-container border border-outline-variant/20 p-5">
-              <p className="font-label-caps text-label-caps text-secondary text-xs mb-2">DICA DO PÓDIO</p>
-              <p className="font-body-sm text-body-sm text-on-surface-variant text-xs leading-relaxed">
-                Complete sua primeira sessão para aparecer no ranking e desbloquear estatísticas de desempenho.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// dashboard admin
-function DashboardAdmin({ usuario, onLogout }) {
-  const [pilotos, setPilotos] = useState(() => auth_listarPilotos());
-  const [busca, setBusca] = useState('');
-  const [pendDelete, setPendDelete] = useState(null);
-
-  const reload = () => setPilotos(auth_listarPilotos());
-
-  const catLabel = { open: 'Open', junior: 'Junior' };
-  const catColor = {
-    open: 'border-secondary/40 text-secondary',
-    junior: 'border-tertiary/40 text-tertiary',
-  };
-
-  const stats = [
-    { label: 'Total', valor: pilotos.length, icon: 'group', color: 'text-on-surface' },
-    { label: 'Open', valor: pilotos.filter(p => calcCategoria(p.nascimento) === 'open').length, icon: 'directions_car', color: 'text-secondary' },
-    { label: 'Junior', valor: pilotos.filter(p => calcCategoria(p.nascimento) === 'junior').length, icon: 'child_care', color: 'text-tertiary' },
-  ];
-
-  const filtrados = pilotos.filter(p =>
-    p.nome.toLowerCase().includes(busca.toLowerCase()) ||
-    p.email.toLowerCase().includes(busca.toLowerCase())
-  );
-
-  const handleDelete = (id) => { auth_deletarPiloto(id); reload(); setPendDelete(null); };
-
-  return (
-    <div className="min-h-screen bg-background">
-      <DashboardNav usuario={usuario} onLogout={onLogout} />
-
-      {/* hero */}
-      <section className="bg-surface-container-low border-b border-outline-variant/20 py-10 px-margin-edge relative overflow-hidden">
-        <div className="absolute inset-0 checkered-pattern opacity-10" aria-hidden="true" />
-        <div className="max-w-container-max mx-auto relative z-10">
-          <p className="font-label-caps text-label-caps text-secondary tracking-widest mb-2">SPEED PARK</p>
-          <h1 className="font-headline-lg text-headline-lg text-on-surface italic uppercase">
-            Painel <span className="text-primary-container">Administrativo</span>
-          </h1>
-        </div>
-      </section>
-
-      <div className="max-w-container-max mx-auto px-margin-edge py-10 flex flex-col gap-8">
-
-        {/* stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-gutter">
-          {stats.map((s) => (
-            <div key={s.label} className="bg-surface-container border border-secondary/20 p-6 flex flex-col gap-2">
-              <span className="material-symbols-outlined text-secondary text-xl">{s.icon}</span>
-              <div className={`font-display-hero leading-none ${s.color}`} style={{ fontSize: '44px' }}>{s.valor}</div>
-              <div className="font-label-caps text-label-caps text-on-surface-variant text-xs">{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* tabela */}
-        <div className="bg-surface-container border border-secondary/20">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5 border-b border-outline-variant/20">
-            <h2 className="font-headline-sm text-headline-sm text-on-surface italic uppercase text-sm flex items-center gap-2">
-              <span className="material-symbols-outlined text-secondary text-base">manage_accounts</span>
-              Pilotos Cadastrados
-            </h2>
-            <input type="text" className="modal-input" style={{ maxWidth: '280px' }}
-              placeholder="Buscar nome ou e-mail…" value={busca} onChange={e => setBusca(e.target.value)} />
-          </div>
-
-          {filtrados.length === 0 ? (
-            <div className="py-16 flex flex-col items-center gap-3 text-on-surface-variant">
-              <span className="material-symbols-outlined text-4xl">person_off</span>
-              <p className="font-body-md text-body-md">{busca ? 'Nenhum resultado' : 'Nenhum piloto cadastrado ainda'}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-surface-container-high border-b border-outline-variant/20">
-                    {['Nome', 'E-mail', 'Categoria', 'Altura', 'Peso', 'Cadastro', ''].map(h => (
-                      <th key={h} className="text-left px-5 py-3 font-label-caps text-label-caps text-on-surface-variant text-xs whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtrados.map((p) => (
-                    <tr key={p.id} className="border-b border-outline-variant/10 last:border-0 hover:bg-surface-container-high transition-colors group">
-                      <td className="px-5 py-4">
-                        <div className="font-body-sm text-body-sm text-on-surface">{p.nome}</div>
-                        <div className="font-label-data text-label-data text-on-surface-variant text-xs">{p.telefone}</div>
-                      </td>
-                      <td className="px-5 py-4 font-body-sm text-body-sm text-on-surface-variant">{p.email}</td>
-                      <td className="px-5 py-4">
-                        <span className={`font-label-caps text-xs px-2 py-0.5 border ${catColor[calcCategoria(p.nascimento)] || 'border-secondary/40 text-secondary'}`}>
-                          {catLabel[calcCategoria(p.nascimento)]}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 font-label-data text-label-data text-on-surface-variant text-sm">{p.altura ? `${p.altura}cm` : '--'}</td>
-                      <td className="px-5 py-4 font-label-data text-label-data text-on-surface-variant text-sm">{p.peso ? `${p.peso}kg` : '--'}</td>
-                      <td className="px-5 py-4 font-label-data text-label-data text-on-surface-variant text-xs whitespace-nowrap">
-                        {p.criadoEm ? new Date(p.criadoEm).toLocaleDateString('pt-BR') : '--'}
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        {pendDelete === p.id ? (
-                          <div className="flex items-center gap-2 justify-end">
-                            <button onClick={() => handleDelete(p.id)}
-                              className="font-label-caps text-xs text-error border border-error/40 px-2 py-1 hover:bg-error/10 transition-colors">
-                              CONFIRMAR
-                            </button>
-                            <button onClick={() => setPendDelete(null)}
-                              className="font-label-caps text-xs text-on-surface-variant border border-outline-variant/30 px-2 py-1 hover:bg-surface transition-colors">
-                              CANCELAR
-                            </button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setPendDelete(p.id)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1">
-                            <span className="material-symbols-outlined text-base text-on-surface-variant hover:text-error transition-colors">delete</span>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // 0. modal cadastro de piloto
 function CadastroPiloto({ onClose, onSuccess }) {
   const [form, setForm] = useState({
@@ -474,16 +275,27 @@ function CadastroPiloto({ onClose, onSuccess }) {
     return e;
   };
 
-  const handleSubmit = (e) => {
+  const [enviando, setEnviando] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (enviando) return;
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    if (auth_emailExiste(form.email)) {
-      setErrors({ email: 'Este e-mail já está cadastrado' });
-      return;
+    setEnviando(true);
+    try {
+      await Api.registrar({
+        nome: form.nome.trim(), cpf: form.cpf, email: form.email.trim(), telefone: form.telefone,
+        nascimento: form.nascimento, altura: Number(form.altura), peso: Number(form.peso), senha: form.senha,
+      });
+      setEnviado(true);
+    } catch (err) {
+      // erros por campo vindos da API; conflito (e-mail/CPF repetido) vai para o campo certo
+      if (err.campos && Object.keys(err.campos).length) setErrors(err.campos);
+      else if (err.status === 409) setErrors(/cpf/i.test(err.message) ? { cpf: err.message } : { email: err.message });
+      else apiErro(err);
     }
-    auth_salvarPiloto(form);
-    setEnviado(true);
+    setEnviando(false);
   };
 
   if (enviado) {
@@ -950,26 +762,31 @@ function Hero({ onReservar }) {
   );
 }
 
+// preco por minuto de cada pista: os mesmos valores que o sistema cobra na reserva (tabela Pista)
+const PRECO_MINUTO = { kids: 6, junior: 8, open: 10 };
+const brl = (v) => `R$ ${v.toFixed(2).replace('.', ',')}`;
+const precoSessao = (categoria, minutos) => brl(PRECO_MINUTO[categoria] * minutos);
+
 // 3. sessoes
 function Sessoes() {
   const categories = [
     {
       id: 'open',
-      tag: 'INICIANTES & AMADORES',
+      tag: 'A PARTIR DE 14 ANOS • PISTA 3',
       title: 'SESSÕES OPEN',
-      description: 'Perfeito para grupos de amigos e pilotos casuais. Karts de 6.5hp com velocidade limitada, mas diversão garantida.',
-      info: '15 MINUTOS • R$ 85,00',
+      description: 'Perfeito para grupos de amigos e pilotos casuais. A maior pista do parque, com 1.200 m de curvas e muita diversão.',
+      info: `10 MINUTOS • ${precoSessao('open', 10)}`,
       colSpan: 'md:col-span-8',
       statusType: 'left',
       featured: false,
       stagger: 'stagger-1',
     },
     {
-      id: 'pro',
-      tag: 'ALTA PERFORMANCE',
-      title: 'SESSÕES PRO',
-      description: 'Karts de 13hp preparados para competição. Requer tempo de qualificação prévio.',
-      info: '20 MINUTOS • R$ 120,00',
+      id: 'junior',
+      tag: '7 A 13 ANOS • PISTA 2',
+      title: 'SESSÕES JUNIOR',
+      description: 'Pista de 800 m e karts com limitador de velocidade para quem está começando a competir.',
+      info: `10 MINUTOS • ${precoSessao('junior', 10)}`,
       colSpan: 'md:col-span-4',
       statusType: 'top',
       featured: true,
@@ -1054,10 +871,10 @@ function Sessoes() {
 
           <div className="p-8 flex-1 flex flex-col justify-center">
             <h3 className="font-headline-sm text-headline-sm text-on-surface italic mb-4">
-              KART JUNIOR
+              KART KIDS
             </h3>
             <p className="font-body-md text-body-md text-on-surface-variant mb-6">
-              Para futuros campeões entre 7 e 12 anos. Pista adaptada e karts com limitador
+              Para os pequenos pilotos com menos de 7 anos. Pista 1, com 550 m adaptados e karts com limitador
               de velocidade, garantindo total segurança para a primeira experiência.
             </p>
             <div className="flex gap-4">
@@ -1065,7 +882,7 @@ function Sessoes() {
                 10 MINUTOS
               </div>
               <div className="px-4 py-2 bg-surface-bright border border-outline-variant/30 font-label-data text-label-data shimmer-text">
-                R$ 60,00
+                {precoSessao('kids', 10)}
               </div>
             </div>
           </div>
@@ -1156,9 +973,9 @@ function Precos({ onReservar }) {
       preco: null,
       destaque: false,
       itens: [
-        { label: 'Sessão Open (15 min)', valor: 'R$ 85,00' },
-        { label: 'Sessão Pro (20 min)', valor: 'R$ 120,00' },
-        { label: 'Sessão Junior (10 min)', valor: 'R$ 60,00' },
+        { label: 'Sessão Kids (10 min)', valor: precoSessao('kids', 10) },
+        { label: 'Sessão Junior (10 min)', valor: precoSessao('junior', 10) },
+        { label: 'Sessão Open (10 min)', valor: precoSessao('open', 10) },
         { label: 'Equipamento incluso', valor: '✓' },
         { label: 'Seguro de corrida', valor: '✓' },
       ],
@@ -1173,7 +990,7 @@ function Precos({ onReservar }) {
       destaque: true,
       itens: [
         { label: '4 sessões Open/mês', valor: '✓' },
-        { label: '2 sessões Pro/mês', valor: '✓' },
+        { label: '2 sessões extras/mês', valor: '✓' },
         { label: 'Prioridade na reserva', valor: '✓' },
         { label: 'Acesso ao app telemetria', valor: '✓' },
         { label: 'Desconto em eventos', valor: '10%' },
@@ -1317,7 +1134,7 @@ const MOCK_RANKINGS = {
     { pos: 9, nome: 'Diego Souza', melhorVolta: '1:01.23', corridas: 16, pontos: 820 },
     { pos: 10, nome: 'Camila Rodrigues', melhorVolta: '1:01.56', corridas: 14, pontos: 700 },
   ],
-  pro: [
+  kids: [
     { pos: 1, nome: 'Lucas Pereira', melhorVolta: '52.100', corridas: 55, pontos: 2400 },
     { pos: 2, nome: 'Thiago Nascimento', melhorVolta: '52.445', corridas: 50, pontos: 2250 },
     { pos: 3, nome: 'Fernanda Oliveira', melhorVolta: '52.890', corridas: 47, pontos: 2100 },
@@ -1340,7 +1157,7 @@ const MOCK_RANKINGS = {
 
 const CATEGORIAS = [
   { id: 'open', label: 'OPEN' },
-  { id: 'pro', label: 'PRO' },
+  { id: 'kids', label: 'KIDS' },
   { id: 'junior', label: 'JUNIOR' },
 ];
 
@@ -1348,25 +1165,30 @@ const medalhas = ['text-yellow-400', 'text-zinc-400', 'text-amber-600'];
 const PONTOS_F1 = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 
 function buildRanking() {
-  const historico = JSON.parse(localStorage.getItem('sp_historico') || '[]');
+  const historico = Api.cache.historico; // corridas encerradas, vindas do banco
   if (historico.length === 0) return [];
   const mapa = {};
   historico.forEach(corrida => {
     (corrida.posicoes || []).forEach((p, i) => {
       const key = p.nome.trim().toLowerCase();
-      if (!mapa[key]) mapa[key] = { nome: p.nome.trim(), corridas: 0, pontos: 0, vitorias: 0 };
+      if (!mapa[key]) mapa[key] = { nome: p.nome.trim(), corridas: 0, pontos: 0, vitorias: 0, melhor: null };
       mapa[key].corridas++;
       mapa[key].pontos += PONTOS_F1[i] || 0;
       if (i === 0) mapa[key].vitorias++;
+      const volta = parseFloat(p.melhorVolta);
+      if (!isNaN(volta) && (mapa[key].melhor === null || volta < mapa[key].melhor)) mapa[key].melhor = volta;
     });
   });
   return Object.values(mapa)
     .sort((a, b) => b.pontos - a.pontos || b.vitorias - a.vitorias)
-    .map((p, i) => ({ ...p, pos: i + 1, melhorVolta: '--' }));
+    .map((p, i) => ({ ...p, pos: i + 1, melhorVolta: p.melhor === null ? '--' : p.melhor.toFixed(1) }));
 }
 
 function Rankings() {
   const [categoria, setCategoria] = useState('open');
+  const [, recarregar] = useState(0);
+  // o ranking e publico: busca o historico na API ao abrir a pagina (se a API estiver fora, mostra o exemplo)
+  useEffect(() => { Api.carregarRankingPublico().then(() => recarregar(v => v + 1)).catch(() => {}); }, []);
   const rankingReal = buildRanking();
   const temDados = rankingReal.length > 0;
   const pilotos = temDados ? rankingReal : MOCK_RANKINGS[categoria];

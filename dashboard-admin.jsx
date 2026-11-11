@@ -4,30 +4,28 @@ const { useState, useEffect } = React;
 function auth_getSession() {
   try { return JSON.parse(sessionStorage.getItem('sp_usuario') || 'null'); } catch { return null; }
 }
-function auth_clearSession() { sessionStorage.removeItem('sp_usuario'); }
+function auth_clearSession() { sessionStorage.removeItem('sp_usuario'); sessionStorage.removeItem('sp_token'); }
 const usuario = auth_getSession();
 if (!usuario || usuario.role !== 'admin') window.location.replace('index.html');
 function handleLogout() { auth_clearSession(); window.location.href = 'index.html'; }
 
 // === pilotos ===
-function pilotos_listar() { return JSON.parse(localStorage.getItem('sp_pilotos') || '[]'); }
-function pilotos_salvar(lista) { localStorage.setItem('sp_pilotos', JSON.stringify(lista)); }
-function pilotos_deletar(id) { pilotos_salvar(pilotos_listar().filter(p => p.id !== id)); }
-function pilotos_email_existe(email) { return pilotos_listar().some(p => p.email === email); }
-function pilotos_cadastrar(piloto) {
-  pilotos_salvar([...pilotos_listar(), { ...piloto, role: 'piloto', id: Date.now(), criadoEm: new Date().toISOString() }]);
+// Os dados vem da API (api.js). Leituras usam o cache; escritas sao async e recarregam o cache.
+function pilotos_listar() { return Api.cache.pilotos; }
+function pilotos_deletar(id) { return Api.removerPiloto(id); }
+function pilotos_email_existe(email) { return pilotos_listar().some(p => p.email.toLowerCase() === email.trim().toLowerCase()); }
+function pilotos_cadastrar(p) {
+  return Api.cadastrarPiloto({
+    nome: p.nome.trim(), cpf: p.cpf, email: p.email.trim(), telefone: p.telefone,
+    nascimento: p.nascimento, altura: Number(p.altura), peso: Number(p.peso), senha: p.senha,
+  });
 }
 
 // === frota ===
-function frota_listar() { return JSON.parse(localStorage.getItem('sp_frota') || '[]'); }
-function frota_salvar(l) { localStorage.setItem('sp_frota', JSON.stringify(l)); }
-function frota_add(numero) {
-  frota_salvar([...frota_listar(), { id: `k${Date.now()}`, numero: Number(numero), status: 'pronto' }]);
-}
-function frota_setStatus(id, status) {
-  frota_salvar(frota_listar().map(k => k.id === id ? { ...k, status } : k));
-}
-function frota_remover(id) { frota_salvar(frota_listar().filter(k => k.id !== id)); }
+function frota_listar() { return Api.cache.frota; }
+function frota_add(numero) { return Api.adicionarKart(numero); }
+function frota_setStatus(id, status) { return Api.statusKart(id, status); }
+function frota_remover(id) { return Api.removerKart(id); }
 function karts_livres() {
   const ativos = frota_listar().filter(k => k.status === 'pronto' || k.status === 'stress').length;
   const emUso  = corridas_listar().reduce((s, c) => s + (c.posicoes || []).length, 0);
@@ -40,33 +38,30 @@ function calcCategoria(nascimento) {
   const nasc = new Date(nascimento + 'T12:00:00');
   let idade = hoje.getFullYear() - nasc.getFullYear();
   if (hoje < new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate())) idade--;
+  if (idade < 7) return 'kids';
   return idade <= 13 ? 'junior' : 'open';
 }
 
-// === horários (grade criada pelo admin) ===
-function horarios_listar() { return JSON.parse(localStorage.getItem('sp_horarios') || '[]'); }
-function horarios_salvar(l) { localStorage.setItem('sp_horarios', JSON.stringify(l)); }
-function horarios_add(d) { horarios_salvar([...horarios_listar(), { id: `h${Date.now()}`, ...d }]); }
-function horarios_remover(id) {
-  horarios_salvar(horarios_listar().filter(h => h.id !== id));
-  reservas_salvar(reservas_listar().filter(r => r.horarioId !== id));
-}
-function horarios_do_dia(data) {
-  return horarios_listar().filter(h => h.data === data).sort((a, b) => a.hora.localeCompare(b.hora));
+// === reservas ===
+function reservas_listar() { return Api.cache.reservas; }
+function reservas_add(d) { return Api.reservar(d); }
+function reservas_remover(id) { return Api.cancelarReserva(id); }
+
+// resumo das reservas de uma data, agrupado por horario e pista (painel principal)
+function sessoes_do_dia(data) {
+  const grupos = {};
+  reservas_listar().filter(r => r.data === data).forEach(r => {
+    const k = `${r.hora}|${r.pistaId}`;
+    const pista = PISTAS.find(p => p.id === r.pistaId);
+    grupos[k] = grupos[k] || { id: k, hora: r.hora, tipo: pista ? pista.nome : r.pistaId, capacidade: pista ? pista.capacidade : 0, vagasOcupadas: 0 };
+    grupos[k].vagasOcupadas++;
+  });
+  return Object.values(grupos).sort((a, b) => a.hora.localeCompare(b.hora) || a.tipo.localeCompare(b.tipo));
 }
 
-// === reservas (inscrições em um horário) ===
-function reservas_listar() { return JSON.parse(localStorage.getItem('sp_reservas') || '[]'); }
-function reservas_salvar(l) { localStorage.setItem('sp_reservas', JSON.stringify(l)); }
-function reservas_add(d) { reservas_salvar([...reservas_listar(), { id: `r${Date.now()}`, ...d }]); }
-function reservas_remover(id) { reservas_salvar(reservas_listar().filter(r => r.id !== id)); }
-function reservas_do_horario(horarioId) { return reservas_listar().filter(r => r.horarioId === horarioId); }
-
-// === corridas ativas (múltiplas pistas simultâneas) ===
-function corridas_listar() { return JSON.parse(localStorage.getItem('sp_corridas_ativas') || '[]'); }
-function corridas_salvar(l) { localStorage.setItem('sp_corridas_ativas', JSON.stringify(l)); }
-function corrida_add(c) { corridas_salvar([...corridas_listar(), { id: `c${Date.now()}`, ...c }]); }
-function corrida_remover(id) { corridas_salvar(corridas_listar().filter(c => c.id !== id)); }
+// === corridas ativas (múltiplas pistas simultâneas) — vem do banco ===
+function corridas_listar() { return Api.cache.ativas; }
+function corrida_add(c) { return Api.iniciarProva(c); }
 function corrida_pista_ocupada(pistaId) { return corridas_listar().some(c => c.pistaId === pistaId); }
 
 // === notificações de agendamento ===
@@ -78,35 +73,28 @@ function notif_reservas_novas() {
 }
 
 // === FATURAMENTO ===
-function fat_listar() { return JSON.parse(localStorage.getItem('sp_faturamento') || '[]'); }
-function fat_salvar(l) { localStorage.setItem('sp_faturamento', JSON.stringify(l)); }
-function fat_add(d) {
-  // d pode icnluir: valor, descricao, formaPagamento, status
-  fat_salvar([...fat_listar(), { id: `f${Date.now()}`, data: new Date().toISOString().slice(0, 10), status: 'pago', formaPagamento: 'pix', ...d }]);
-}
-function fat_update(id, dados) {
-  fat_salvar(fat_listar().map(f => f.id === id ? { ...f, ...dados } : f));
-}
+// data local (AAAA-MM-DD): o servidor grava a data local, nao a UTC
+const dataLocal = (d = new Date()) => d.toLocaleDateString('sv-SE');
+function fat_listar() { return Api.cache.faturamento; }
+function fat_add(d) { return Api.lancar(d); } // d: valor, descricao, formaPagamento, status
+function fat_update(id, dados) { return Api.editarLancamento(id, dados); }
+function fat_remover(id) { return Api.removerLancamento(id); }
 function fat_hoje() {
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = dataLocal();
   return fat_listar().filter(f => f.data === hoje && f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
 }
 function fat_ontem() {
-  const d = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const d = dataLocal(new Date(Date.now() - 86400000));
   return fat_listar().filter(f => f.data === d && f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
 }
 
 // === histórico de corridas ===
-function historico_listar() { return JSON.parse(localStorage.getItem('sp_historico') || '[]'); }
-function historico_add(corrida) {
-  localStorage.setItem('sp_historico', JSON.stringify([
-    ...historico_listar(),
-    { ...corrida, encerradaEm: Date.now() },
-  ]));
-}
+function historico_listar() { return Api.cache.historico; }
+// encerra a corrida no banco: ela sai das ativas e entra no historico com o resultado informado
+function corrida_encerrar(corrida, posicoes) { return Api.encerrarProva(corrida.id, posicoes); }
 
 // === helpers ===
-const hoje = new Date().toISOString().slice(0, 10);
+const hoje = dataLocal();
 function dataLabel(data) {
   if (data === hoje) return 'Hoje';
   const d = new Date(data + 'T12:00:00');
@@ -142,6 +130,7 @@ const NAV_ITEMS = [
   { id: 'classificacao', label: 'Classificação', icon: 'leaderboard' },
   { id: 'frota', label: 'Frota', icon: 'directions_car' },
   { id: 'financeiro', label: 'Financeiro', icon: 'payments' },
+  { id: 'relatorios', label: 'Relatórios', icon: 'bar_chart' },
 ];
 
 // === sidebar ===
@@ -349,8 +338,8 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial, pist
       ? pilotsInicial
       : [{ kart: '', nome: '' }, { kart: '', nome: '' }]
   );
-  const pilotosCadastrados = JSON.parse(localStorage.getItem('sp_pilotos') || '[]');
-  const kartsCadastrados = JSON.parse(localStorage.getItem('sp_frota') || '[]');
+  const pilotosCadastrados = pilotos_listar();
+  const kartsCadastrados = frota_listar();
   const livres = karts_livres();
   const pilotosValidos = pilotos.filter(p => p.nome.trim()).length;
   const aviso = livres < pilotosValidos
@@ -363,19 +352,19 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial, pist
   const removePiloto = (i) => setPilotos(p => p.filter((_, idx) => idx !== i));
   const update = (i, campo, val) => setPilotos(p => p.map((item, idx) => idx === i ? { ...item, [campo]: val } : item));
 
-  const iniciar = () => {
+  const iniciar = async () => {
     const posicoes = pilotos.filter(p => p.nome.trim());
     if (!pistaId) { setErro('Selecione a pista'); return; }
     if (!numero || !duracao || posicoes.length === 0) { setErro('Preencha todos os campos'); return; }
     if (corrida_pista_ocupada(pistaId)) { setErro('Esta pista já tem uma corrida em andamento'); return; }
-    corrida_add({
-      numero: Number(numero),
-      pistaId,
-      pistaNome: PISTAS.find(p => p.id === pistaId)?.nome || pistaId,
-      iniciadaEm: Date.now(),
-      duracaoSec: Number(duracao) * 60,
-      posicoes: posicoes.map(p => ({ kart: p.kart || '?', nome: p.nome.trim() })),
-    });
+    try {
+      await corrida_add({
+        numero: Number(numero),
+        pistaId,
+        duracaoSec: Math.round(Number(duracao) * 60),
+        posicoes: posicoes.map(p => ({ kart: String(p.kart || '?'), nome: p.nome.trim() })),
+      });
+    } catch (e) { setErro(e.message); return; }
     onIniciada();
   };
 
@@ -464,9 +453,12 @@ function EncerrarCorridaModal({ corrida, onClose, onEncerrada }) {
   const update = (i, campo, val) =>
     setPosicoes(p => p.map((item, idx) => idx === i ? { ...item, [campo]: val } : item));
 
-  const encerrar = () => {
-    historico_add({ ...corrida, posicoes });
-    corrida_remover(corrida.id);
+  const encerrar = async () => {
+    try {
+      await corrida_encerrar(corrida, posicoes.map(p => ({
+        kart: String(p.kart || '?'), nome: p.nome, melhorVolta: p.melhorVolta || '', penalidades: p.penalidades || '',
+      })));
+    } catch (e) { apiErro(e); return; }
     onEncerrada();
   };
 
@@ -544,11 +536,7 @@ function PainelPrincipal({ onTabChange }) {
     setCorridas(corridas_listar());
     setFatHojeVal(fat_hoje());
     setFatOntemVal(fat_ontem());
-    const hs = horarios_do_dia(hoje).map(h => ({
-      ...h,
-      vagasOcupadas: reservas_do_horario(h.id).length,
-    }));
-    setProximasHoje(hs);
+    setProximasHoje(sessoes_do_dia(hoje));
   };
 
   useEffect(() => { reload(); }, []);
@@ -737,18 +725,18 @@ function PainelPrincipal({ onTabChange }) {
           {proximasHoje.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-on-surface-variant">
               <span className="material-symbols-outlined text-4xl">calendar_month</span>
-              <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>Nenhum horário na grade de hoje</p>
+              <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>Nenhuma reserva para hoje</p>
               <button onClick={() => onTabChange('agenda')}
                 className="border border-secondary/40 px-4 py-2 text-secondary transition-colors hover:bg-secondary/10"
                 style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' }}>
-                + MONTAR GRADE
+                VER AGENDA
               </button>
             </div>
           ) : (
             <>
               <div className="flex-1">
                 <div className="grid grid-cols-3 border-b border-outline-variant/20 px-5 py-2">
-                  {['HORA', 'TIPO', 'VAGAS'].map(h => (
+                  {['HORA', 'PISTA', 'VAGAS'].map(h => (
                     <span key={h} className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>{h}</span>
                   ))}
                 </div>
@@ -848,7 +836,7 @@ function Agenda() {
   const [formNome, setFormNome] = useState('');
   const [slotParaIniciar, setSlotParaIniciar] = useState(null);
   const [, forceUpdate] = useState(0);
-  const pilotosCadastrados = JSON.parse(localStorage.getItem('sp_pilotos') || '[]');
+  const pilotosCadastrados = pilotos_listar();
 
   const reload = () => forceUpdate(x => x + 1);
 
@@ -865,16 +853,21 @@ function Agenda() {
     setFormNome('');
   };
 
-  const addPiloto = (hora, pistaId) => {
+  const addPiloto = async (hora, pistaId) => {
     if (!formNome.trim()) return;
     const pista = PISTAS.find(p => p.id === pistaId);
     if (reservas_do_slot(dataAtiva, hora, pistaId).length >= pista.capacidade) return;
-    reservas_add({ data: dataAtiva, hora, pistaId, nome: formNome.trim() });
-    setFormNome('');
+    try {
+      await reservas_add({ data: dataAtiva, hora, pistaId, nome: formNome.trim() });
+      setFormNome('');
+    } catch (e) { apiErro(e); }
     reload();
   };
 
-  const removePiloto = (id) => { reservas_remover(id); reload(); };
+  const removePiloto = async (id) => {
+    try { await reservas_remover(id); } catch (e) { apiErro(e); }
+    reload();
+  };
 
   const totalPilotosDia = PISTAS.reduce((acc, p) =>
     acc + horarios.reduce((a2, h) => a2 + reservas_do_slot(dataAtiva, h, p.id).length, 0), 0);
@@ -923,7 +916,7 @@ function Agenda() {
       </div>
 
       {/* resumo do dia */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-on-surface-variant capitalize"
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-on-surface-variant first-letter:uppercase"
         style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>
         <span>{diaNome}</span>
         <span>·</span>
@@ -1077,12 +1070,14 @@ function Frota() {
   const [novoNum, setNovoNum] = useState('');
   const [erro, setErro] = useState('');
   const reload = () => setFrota(frota_listar());
-  const addKart = () => {
+  const addKart = async () => {
     const num = Number(novoNum);
     if (!num || num < 1) { setErro('Número inválido'); return; }
     if (frota.some(k => k.numero === num)) { setErro(`Kart #${num} já existe`); return; }
-    frota_add(num); setNovoNum(''); setErro(''); reload();
+    try { await frota_add(num); setNovoNum(''); setErro(''); } catch (e) { setErro(e.message); }
+    reload();
   };
+  const acao = async (fn) => { try { await fn(); } catch (e) { apiErro(e); } reload(); };
   const statusCfg = {
     pronto: { label: 'Pronto', cls: 'text-green-400 border-green-500/40 bg-green-500/10' },
     atenção: { label: 'Atenção', cls: 'text-yellow-400 border-yellow-500/40 bg-yellow-500/10' },
@@ -1123,7 +1118,7 @@ function Frota() {
               <div key={k.id} className="flex flex-col gap-3 border border-outline-variant/20 bg-surface-container p-4">
                 <div className="flex items-center justify-between">
                   <span className="font-black italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '28px', lineHeight: '1' }}>#{k.numero}</span>
-                  <button onClick={() => { frota_remover(k.id); reload(); }} className="text-error/40 transition-colors hover:text-error">
+                  <button onClick={() => acao(() => frota_remover(k.id))} className="text-error/40 transition-colors hover:text-error">
                     <span className="material-symbols-outlined text-base">close</span>
                   </button>
                 </div>
@@ -1131,7 +1126,7 @@ function Frota() {
                   style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>{cfg.label}</span>
                 <div className="flex flex-col gap-1">
                   {Object.entries(statusCfg).map(([val, c]) => (
-                    <button key={val} onClick={() => { frota_setStatus(k.id, val); reload(); }}
+                    <button key={val} onClick={() => acao(() => frota_setStatus(k.id, val))}
                       className={`px-2 py-1 text-left transition-colors ${k.status === val ? `border ${c.cls} font-bold` : 'text-on-surface-variant hover:bg-surface-container-high'}`}
                       style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>{c.label}</button>
                   ))}
@@ -1197,11 +1192,15 @@ function Financeiro() {
   const [form, setForm] = useState({ valor: '', descricao: '', formaPagamento: 'pix', status: 'pago' });
   const reload = () => setRegistros(fat_listar());
 
-  const salvar = () => {
+  const acao = async (fn) => { try { await fn(); } catch (e) { apiErro(e); } reload(); };
+
+  const salvar = async () => {
     if (!form.valor || Number(form.valor) <= 0) return;
-    fat_add({ valor: Number(form.valor), descricao: form.descricao, formaPagamento: form.formaPagamento, status: form.status });
-    setForm({ valor: '', descricao: '', formaPagamento: 'pix', status: 'pago' });
-    setShowForm(false);
+    try {
+      await fat_add({ valor: Number(form.valor), descricao: form.descricao, formaPagamento: form.formaPagamento, status: form.status });
+      setForm({ valor: '', descricao: '', formaPagamento: 'pix', status: 'pago' });
+      setShowForm(false);
+    } catch (e) { apiErro(e); }
     reload();
   };
 
@@ -1209,7 +1208,7 @@ function Financeiro() {
   const totalGeral = registros.filter(f => f.status !== 'pendente').reduce((s, f) => s + Number(f.valor), 0);
   const totalPendente = registros.filter(f => f.status === 'pendente').reduce((s, f) => s + Number(f.valor), 0);
   const fmtMoney = v => v >= 1000 ? `${(v / 1000).toFixed(1)}` : v.toFixed(0);
-  const sorted = [...registros].sort((a, b) => b.id.localeCompare(a.id));
+  const sorted = [...registros].sort((a, b) => b.id - a.id);
 
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' };
   const formaPagLabel = { pix: 'PIX', cartao_credito: 'Crédito', cartao_debito: 'Débito', dinheiro: 'Dinheiro' };
@@ -1314,9 +1313,8 @@ function Financeiro() {
                     <button onClick={() => {
                         const novoStatus = f.status === 'pago' ? 'pendente' : 'pago';
                         const update = { status: novoStatus };
-                        if (novoStatus === 'pago') update.data = new Date().toISOString().slice(0, 10);
-                        fat_update(f.id, update);
-                        reload();
+                        if (novoStatus === 'pago') update.data = dataLocal();
+                        acao(() => fat_update(f.id, update));
                       }}
                       className={`group border px-2 py-0.5 transition-colors cursor-pointer ${f.status === 'pendente' ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400 hover:bg-green-500/20 hover:border-green-500/40 hover:text-green-400' : 'border-green-500/40 bg-green-500/10 text-green-400 hover:bg-yellow-500/20 hover:border-yellow-500/40 hover:text-yellow-400'}`}
                       style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}
@@ -1335,7 +1333,7 @@ function Financeiro() {
                         title="Ver comprovante">
                         <span className="material-symbols-outlined text-sm">receipt</span>
                       </button>
-                      <button onClick={() => { fat_salvar(fat_listar().filter(x => x.id !== f.id)); reload(); }}
+                      <button onClick={() => acao(() => fat_remover(f.id))}
                         className="flex h-7 w-7 items-center justify-center border border-error/30 text-error transition-colors hover:bg-error/10">
                         <span className="material-symbols-outlined text-sm">delete</span>
                       </button>
@@ -1394,11 +1392,18 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
     return e;
   };
 
-  const salvar = () => {
+  const salvar = async () => {
     const e = validar();
     if (Object.keys(e).length > 0) { setErros(e); return; }
     if (pilotos_email_existe(form.email)) { setErros({ email: 'Este e-mail já está cadastrado' }); return; }
-    pilotos_cadastrar(form);
+    try {
+      await pilotos_cadastrar(form);
+    } catch (err) {
+      if (err.campos && Object.keys(err.campos).length) setErros(err.campos);
+      else if (err.status === 409) setErros(/cpf/i.test(err.message) ? { cpf: err.message } : { email: err.message });
+      else apiErro(err);
+      return;
+    }
     onCadastrado(form.nome.split(' ')[0], gerarSenha ? form.senha : null);
   };
 
@@ -1537,8 +1542,8 @@ function Clientes() {
 
   const reload = () => setPilotos(pilotos_listar());
 
-  const catLabel = { open: 'Open', junior: 'Junior' };
-  const catColor = { open: 'border-secondary/40 text-secondary', junior: 'border-tertiary/40 text-tertiary' };
+  const catLabel = { open: 'Open', junior: 'Junior', kids: 'Kids' };
+  const catColor = { open: 'border-secondary/40 text-secondary', junior: 'border-tertiary/40 text-tertiary', kids: 'border-primary/40 text-primary' };
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' };
 
   const filtrados = pilotos.filter(p =>
@@ -1546,7 +1551,10 @@ function Clientes() {
     p.email.toLowerCase().includes(busca.toLowerCase())
   );
 
-  const handleDelete = (id) => { pilotos_deletar(id); reload(); setPendDelete(null); };
+  const handleDelete = async (id) => {
+    try { await pilotos_deletar(id); } catch (e) { apiErro(e); }
+    reload(); setPendDelete(null);
+  };
 
   const handleCadastrado = (nome, senha) => {
     setShowCadastro(false);
@@ -1668,7 +1676,7 @@ function Clientes() {
                         </div>
                       ) : (
                         <button onClick={() => setPendDelete(p.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex h-8 w-8 items-center justify-center border border-error/30 text-error hover:bg-error/10">
+                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-auto flex h-8 w-8 items-center justify-center border border-error/30 text-error hover:bg-error/10">
                           <span className="material-symbols-outlined text-base">delete</span>
                         </button>
                       )}
@@ -1769,6 +1777,143 @@ function Classificacao() {
   );
 }
 
+// === relatórios (lidos de views, function e logs de triggers do banco) ===
+const RELATORIOS = [
+  { id: 'reservas', titulo: 'Reservas', origem: 'VIEW v_Relatorio_Reservas_SpeedPark', caminho: 'reservas', periodo: true,
+    desc: 'Cada reserva com pista, quem reservou, valor, situação e ocupação do horário.' },
+  { id: 'financeiro', titulo: 'Financeiro por dia', origem: 'VIEW v_Resumo_Financeiro_SpeedPark', caminho: 'financeiro', periodo: true,
+    desc: 'Total pago e pendente por dia e forma de pagamento, com ticket médio.' },
+  { id: 'ranking', titulo: 'Ranking de pilotos', origem: 'FUNCTION fc_RankingPilotos_SpeedPark', caminho: 'ranking', ranking: true,
+    desc: 'Pontuação estilo F1 das corridas encerradas, filtrando por mínimo de corridas e por pista.' },
+  { id: 'audReservas', titulo: 'Auditoria: reservas', origem: 'TRIGGER tg_HistNovaReserva', caminho: 'auditoria/reservas',
+    desc: 'Registro automático do banco a cada reserva criada (quem, quando, usuário do banco).' },
+  { id: 'audFinanceiro', titulo: 'Auditoria: financeiro', origem: 'TRIGGER tg_AuditoriaFaturamento', caminho: 'auditoria/faturamento',
+    desc: 'Registro automático do banco quando o status ou o valor de um lançamento muda (antes e depois).' },
+];
+
+// formata cada célula conforme o tipo do valor
+function celulaRelatorio(chave, v) {
+  if (v === null || v === undefined || v === '') return '--';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + 'T12:00:00').toLocaleDateString('pt-BR');
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return new Date(v).toLocaleString('pt-BR');
+  if (typeof v === 'string' && /^\d{2}:\d{2}:\d{2}/.test(v)) return v.slice(0, 5);
+  if (typeof v === 'number' && /^(valor|total|ticket)/i.test(chave)) return `R$ ${v.toFixed(2).replace('.', ',')}`;
+  return String(v);
+}
+const rotuloColuna = k => k.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2');
+
+function Relatorios() {
+  const [aba, setAba] = useState('reservas');
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
+  const [minimo, setMinimo] = useState(1);
+  const [pista, setPista] = useState('');
+  const [linhas, setLinhas] = useState(null);
+  const [erro, setErro] = useState('');
+  const rel = RELATORIOS.find(r => r.id === aba);
+
+  const carregar = async () => {
+    setLinhas(null); setErro('');
+    const q = new URLSearchParams();
+    if (rel.periodo) { if (de) q.set('de', de); if (ate) q.set('ate', ate); }
+    if (rel.ranking) { q.set('minimoCorridas', String(minimo || 1)); if (pista) q.set('pista', pista); }
+    try { setLinhas(await Api.relatorio(rel.caminho + (q.toString() ? `?${q}` : ''))); }
+    catch (e) { setErro(e.message); setLinhas([]); }
+  };
+  useEffect(() => { carregar(); }, [aba]);
+
+  const colunas = linhas && linhas.length ? Object.keys(linhas[0]) : [];
+  const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="font-black italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '32px', lineHeight: '1.2' }}>Relatórios</h1>
+        <p className="mt-1 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>
+          Consultas feitas direto pelo banco de dados: views, function e o histórico gravado pelas triggers.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {RELATORIOS.map(r => (
+          <button key={r.id} onClick={() => setAba(r.id)}
+            className={`border px-4 py-2 transition-colors ${aba === r.id ? 'border-primary bg-primary-container text-white' : 'border-outline-variant/30 text-on-surface-variant hover:border-primary/50 hover:text-primary'}`}
+            style={lbl}>{r.titulo.toUpperCase()}</button>
+        ))}
+      </div>
+
+      <div className="border border-outline-variant/20 bg-surface-container p-4">
+        <p className="text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>{rel.desc}</p>
+        <p className="mt-1 text-secondary" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>Origem no banco: {rel.origem}</p>
+
+        {(rel.periodo || rel.ranking) && (
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            {rel.periodo && (<>
+              <div className="flex flex-col gap-1">
+                <label className="text-on-surface-variant" style={lbl}>DE</label>
+                <input type="date" value={de} onChange={e => setDe(e.target.value)} className="modal-input" style={{ colorScheme: 'dark' }} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-on-surface-variant" style={lbl}>ATÉ</label>
+                <input type="date" value={ate} onChange={e => setAte(e.target.value)} className="modal-input" style={{ colorScheme: 'dark' }} />
+              </div>
+            </>)}
+            {rel.ranking && (<>
+              <div className="flex flex-col gap-1">
+                <label className="text-on-surface-variant" style={lbl}>MÍNIMO DE CORRIDAS</label>
+                <input type="number" min="1" value={minimo} onChange={e => setMinimo(Number(e.target.value))} className="modal-input" style={{ width: '120px' }} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-on-surface-variant" style={lbl}>PISTA</label>
+                <select value={pista} onChange={e => setPista(e.target.value)} className="modal-input">
+                  <option value="">Todas</option>
+                  {PISTAS.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                </select>
+              </div>
+            </>)}
+            <button onClick={carregar} className="bg-primary-container px-5 py-3 text-white transition-opacity hover:opacity-90" style={lbl}>CONSULTAR</button>
+          </div>
+        )}
+      </div>
+
+      {erro && <p className="text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>{erro}</p>}
+
+      {linhas === null ? (
+        <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>Consultando o banco...</p>
+      ) : linhas.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 border border-outline-variant/20 bg-surface-container py-14 text-on-surface-variant">
+          <span className="material-symbols-outlined text-5xl">table_chart</span>
+          <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>Nenhum registro para esta consulta.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto border border-outline-variant/20 bg-surface-container">
+          <table className="w-full min-w-max">
+            <thead>
+              <tr className="border-b border-outline-variant/20 bg-surface-container-high">
+                {colunas.map(c => <th key={c} className="px-4 py-3 text-left text-on-surface-variant whitespace-nowrap" style={lbl}>{rotuloColuna(c).toUpperCase()}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l, i) => (
+                <tr key={i} className="border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high">
+                  {colunas.map(c => (
+                    <td key={c} className="px-4 py-3 text-on-surface whitespace-nowrap" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>
+                      {celulaRelatorio(c, l[c])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {linhas && linhas.length > 0 && (
+        <p className="text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>{linhas.length} registro(s)</p>
+      )}
+    </div>
+  );
+}
+
 // === app ===
 function DashboardAdmin() {
   const [activeTab, setActiveTab] = useState('painel');
@@ -1789,6 +1934,7 @@ function DashboardAdmin() {
       case 'frota': return <Frota />;
       case 'financeiro': return <Financeiro />;
       case 'classificacao': return <Classificacao />;
+      case 'relatorios': return <Relatorios />;
       default: return null;
     }
   };
@@ -1802,7 +1948,7 @@ function DashboardAdmin() {
         onClose={() => setSidebarOpen(false)}
         novosAgendamentos={novosAgendamentos}
       />
-      <div className="flex flex-1 flex-col lg:ml-56">
+      <div className="flex min-w-0 flex-1 flex-col lg:ml-56">
         <TopBar
           onMenuToggle={() => setSidebarOpen(o => !o)}
           novosAgendamentos={novosAgendamentos}
@@ -1872,7 +2018,7 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <DashboardAdmin />
+      <Carregador role="admin"><DashboardAdmin /></Carregador>
     </ErrorBoundary>
   </React.StrictMode>
 );

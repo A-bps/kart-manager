@@ -18,7 +18,8 @@
     rel="stylesheet" />
 
   <!-- Tailwind CSS v3 CDN -->
-  <script src="https://cdn.tailwindcss.com" integrity="sha384-J6jh+wvWI+24RUymQr46oKcFOXwYO47OvIa65AqD8A/n5YivCH100CNvEacontJF" crossorigin="anonymous"></script>
+  <!-- Tailwind Play CDN nao envia CORS, entao nao aceita SRI; versao fixada em 3.4.17 -->
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 
   <!-- Tailwind Configuration -->
   <script>
@@ -121,11 +122,11 @@
   <link rel="stylesheet" href="./style.css?v=2" />
 
   <!-- React 18 & ReactDOM 18 CDNs -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" integrity="sha384-hWVjZqCM7ONibbUNUV3JsYtSaXWlykznycKso8wgZVUVW35AEZouco0OMYEYREc/P" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" integrity="sha384-QVMqVWHa3bUx6MwJcqKH8s1kUhLCAR0HhZFI7o03fxCHCjfvLBp3jNpK3X0kLSwit" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 
   <!-- Babel Standalone CDN for in-browser JSX compilation -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js" integrity="sha384-bKJ4bKnLdyT/Ej3LG3gEfKJFLBzHCkSwWI/KZrSJGhFY5SFGk8kYiH3H6+PiPL5+" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js" integrity="sha384-x/ilTFv/u/eu6YSmkFDZl5V5Mm/pkxxcVv2cVJOrr1J0rvILhMvRBCy6yA75wYBj" crossorigin="anonymous"></script>
 </head>
 
 <body
@@ -133,7 +134,8 @@
   <div id="root"></div>
 
   <!-- Main React App loaded via Babel -->
-  <script type="text/babel" src="./app.jsx?v=2"></script>
+  <script src="./api.js?v=4"></script>
+  <script type="text/babel" src="./app.jsx?v=7"></script>
 </body>
 
 </html>
