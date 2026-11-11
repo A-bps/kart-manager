@@ -1777,18 +1777,14 @@ function Classificacao() {
   );
 }
 
-// === relatórios (lidos de views, function e logs de triggers do banco) ===
+// === relatórios (lidos da view, da function e do log da trigger do banco) ===
 const RELATORIOS = [
   { id: 'reservas', titulo: 'Reservas', origem: 'VIEW v_Relatorio_Reservas_SpeedPark', caminho: 'reservas', periodo: true,
-    desc: 'Cada reserva com pista, quem reservou, valor, situação e ocupação do horário.' },
-  { id: 'financeiro', titulo: 'Financeiro por dia', origem: 'VIEW v_Resumo_Financeiro_SpeedPark', caminho: 'financeiro', periodo: true,
-    desc: 'Total pago e pendente por dia e forma de pagamento, com ticket médio.' },
+    desc: 'Cada reserva com pista, quem reservou, forma de pagamento, valor e situação.' },
   { id: 'ranking', titulo: 'Ranking de pilotos', origem: 'FUNCTION fc_RankingPilotos_SpeedPark', caminho: 'ranking', ranking: true,
-    desc: 'Pontuação estilo F1 das corridas encerradas, filtrando por mínimo de corridas e por pista.' },
+    desc: 'Corridas, vitórias e pontos (estilo F1) de cada piloto, filtrando por mínimo de corridas e por pista.' },
   { id: 'audReservas', titulo: 'Auditoria: reservas', origem: 'TRIGGER tg_HistNovaReserva', caminho: 'auditoria/reservas',
     desc: 'Registro automático do banco a cada reserva criada (quem, quando, usuário do banco).' },
-  { id: 'audFinanceiro', titulo: 'Auditoria: financeiro', origem: 'TRIGGER tg_AuditoriaFaturamento', caminho: 'auditoria/faturamento',
-    desc: 'Registro automático do banco quando o status ou o valor de um lançamento muda (antes e depois).' },
 ];
 
 // formata cada célula conforme o tipo do valor
@@ -1830,7 +1826,7 @@ function Relatorios() {
       <div>
         <h1 className="font-black italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '32px', lineHeight: '1.2' }}>Relatórios</h1>
         <p className="mt-1 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>
-          Consultas feitas direto pelo banco de dados: views, function e o histórico gravado pelas triggers.
+          Consultas feitas direto pelo banco de dados: view, function e o histórico gravado pela trigger.
         </p>
       </div>
 

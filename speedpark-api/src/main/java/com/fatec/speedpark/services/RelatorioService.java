@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 
 /**
  * Consultas que usam os recursos criados no banco (script "ADMINISTRACAO DE BANCO DE DADOS"):
- * views, function que retorna tabela e as tabelas de LOG alimentadas pelas triggers.
+ * view, function que retorna tabela e a tabela de LOG alimentada pela trigger.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,12 +28,6 @@ public class RelatorioService {
                 "order by Data_Reserva desc, Horario, No_Reserva");
     }
 
-    /** VIEW v_Resumo_Financeiro_SpeedPark (total pago/pendente por dia e forma de pagamento). */
-    public List<Map<String, Object>> financeiro(LocalDate de, LocalDate ate) {
-        return consultaPorPeriodo("select * from dbo.v_Resumo_Financeiro_SpeedPark", "Data_Lancamento", de, ate,
-                "order by Data_Lancamento desc, Forma_Pagamento");
-    }
-
     /** FUNCTION fc_RankingPilotos_SpeedPark(minimo de corridas, pista ou null para todas). */
     public List<Map<String, Object>> ranking(int minimoCorridas, String pistaCodigo) {
         return limpar(jdbc.queryForList("select * from dbo.fc_RankingPilotos_SpeedPark(?, ?) order by Pontos desc, Vitorias desc, Piloto",
@@ -43,11 +37,6 @@ public class RelatorioService {
     /** LOG da trigger tg_HistNovaReserva (uma linha para cada reserva criada). */
     public List<Map<String, Object>> auditoriaReservas() {
         return limpar(jdbc.queryForList("select top 200 * from LOG_HistoricoNovaReserva order by idLog desc"));
-    }
-
-    /** LOG da trigger tg_AuditoriaFaturamento (status/valor antes e depois de cada alteracao). */
-    public List<Map<String, Object>> auditoriaFaturamento() {
-        return limpar(jdbc.queryForList("select top 200 * from LOG_AuditoriaFaturamento order by idLog desc"));
     }
 
     // troca java.sql.Date/Time/Timestamp por java.time: o JSON sai como "2026-11-24", "10:00:00" e "2026-11-10T17:07:34"

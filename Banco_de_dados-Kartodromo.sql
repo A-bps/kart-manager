@@ -519,8 +519,7 @@ go
 -- Objetivo:
 -- Facilitar a consulta das reservas realizadas no sistema,
 -- reunindo em uma única consulta os dados da pista, do piloto
--- que fez a reserva, de quem vai correr, da cobrança e da
--- situação da reserva.
+-- que fez a reserva, da cobrança e da situação da reserva.
 --============================================================
 
 create view v_Relatorio_Reservas_SpeedPark
@@ -530,32 +529,19 @@ as
 		R.id               as No_Reserva,
 		R.data             as Data_Reserva,
 		R.horario          as Horario,
-		R.criada_em        as Criada_Em,
+		R.participante     as Participante,
+		R.valor            as Valor,
 
 		-- Dados da pista
 		P.nome             as Pista,
 		P.categoria        as Categoria_Pista,
-		P.capacidade       as Capacidade_Pista,
 
-		-- Quem vai correr e quem fez a reserva
-		R.participante     as Participante,
+		-- Dados do piloto que fez a reserva
 		PE.nome            as Responsavel,
 		PE.email           as Email_Responsavel,
 		PE.fone            as Telefone_Responsavel,
 
-		-- Origem da reserva traduzida para melhor entendimento
-		case
-			when C.pessoa_codigo is null then 'Balcao (admin)'
-			else 'Site (piloto)'
-		end as Origem,
-
-		-- Dados da cobrança
-		case R.formato
-			when 'tempo'  then 'Por tempo'
-			when 'voltas' then 'Por voltas'
-			else 'Sem cobranca'
-		end as Formato,
-		R.qtd              as Quantidade,
+		-- Forma de pagamento traduzida para melhor entendimento
 		case R.forma_pagamento
 			when 'pix'            then 'PIX'
 			when 'cartao_debito'  then 'Cartao de debito'
@@ -563,7 +549,6 @@ as
 			when 'dinheiro'       then 'Dinheiro'
 			else 'Nao informado'
 		end as Forma_Pagamento,
-		R.valor            as Valor,
 
 		-- Situação da reserva traduzida para melhor entendimento
 		case
@@ -578,11 +563,11 @@ as
 	inner join Pista as P
 		on R.pista_nr = P.nr
 
-	-- Relaciona a reserva com o piloto que a fez (reserva de balcão não tem piloto)
+	-- Relaciona a reserva com o piloto que a fez
 	left join Cliente as C
 		on R.cliente_codigo = C.pessoa_codigo
 
-	-- Busca o nome e os contatos do piloto na tabela pessoa
+	-- Busca o nome do piloto na tabela pessoa
 	left join Pessoa as PE
 		on C.pessoa_codigo = PE.codigo
 go
@@ -592,321 +577,114 @@ select * from v_Relatorio_Reservas_SpeedPark
 go
 
 --============================================================
--- VIEW: resumo financeiro por dia e forma de pagamento
+-- PROCEDURE: cadastrar uma nova reserva no sistema Speed Park
 --
 -- Objetivo:
--- Mostrar ao financeiro quanto já foi pago e quanto está
--- pendente em cada dia, separado por forma de pagamento,
--- com a quantidade de lançamentos e o valor médio.
---============================================================
-
-create view v_Resumo_Financeiro_SpeedPark
-as
-	select
-		F.data as Data_Lancamento,
-
-		-- Forma de pagamento traduzida para melhor entendimento
-		case F.forma_pagamento
-			when 'pix'            then 'PIX'
-			when 'cartao_debito'  then 'Cartao de debito'
-			when 'cartao_credito' then 'Cartao de credito'
-			when 'dinheiro'       then 'Dinheiro'
-			else 'Nao informado'
-		end as Forma_Pagamento,
-
-		count(*) as Qtd_Lancamentos,
-		sum(case when F.status = 'pago'     then F.valor else 0 end) as Total_Pago,
-		sum(case when F.status = 'pendente' then F.valor else 0 end) as Total_Pendente,
-		avg(F.valor) as Valor_Medio
-
-	from Faturamento as F
-
-	group by F.data, F.forma_pagamento
-go
-
--- Testando a view
-select * from v_Resumo_Financeiro_SpeedPark
-go
-
---============================================================
--- FUNCTION: categoria do piloto pela idade
--- TIPO: SCALAR FUNCTION
---
--- Objetivo:
--- Devolver a categoria do piloto conforme a idade, regra
--- usada pela procedure de reserva (cada pista aceita uma
--- categoria):
---   menos de 7 anos  = kids   (Pista 1)
---   de 7 a 13 anos   = junior (Pista 2)
---   14 anos ou mais  = open   (Pista 3)
---============================================================
-
-create function fc_CategoriaPorIdade_SpeedPark
-(
-	@nascimento date
-)
-returns varchar(10)
-as
-begin
-
-	declare @idade int
-
-	-- idade em anos completos (desconta 1 se o aniversário ainda não chegou)
-	set @idade = datediff(year, @nascimento, getdate())
-
-	if dateadd(year, @idade, @nascimento) > cast(getdate() as date)
-		set @idade = @idade - 1
-
-	return case
-		when @idade < 7   then 'kids'
-		when @idade <= 13 then 'junior'
-		else 'open'
-	end
-
-end
-go
-
--- TESTANDO A FUNCTION
-select dbo.fc_CategoriaPorIdade_SpeedPark('2022-03-10') as Kids,
-       dbo.fc_CategoriaPorIdade_SpeedPark('2015-03-10') as Junior,
-       dbo.fc_CategoriaPorIdade_SpeedPark('1995-03-10') as Open_
-go
-
---============================================================
--- PROCEDURE: criar uma reserva no sistema Speed Park
---
--- Objetivo:
--- Realizar a reserva completa em uma única transação:
--- confere a pista, a categoria do participante e as vagas do
--- horário, calcula o valor e grava a reserva e o lançamento
--- financeiro. Se qualquer passo falhar, nada é gravado.
+-- Realizar o cadastro completo de uma reserva.
 --
 -- Observação:
--- quando há erro de regra de negócio (ou erro do banco), a
--- procedure desfaz a transação e devolve NumeroErro e
--- MensagemErro, que o sistema Java traduz para a resposta:
---   50001 horário lotado           | 50005 dependente inexistente
---   50002 categoria x pista        | 50006 dependente de outro piloto
---   50003 pista inexistente        | 50007 quantidade inválida
---   50004 piloto não cadastrado
+-- toda reserva paga também gera um lançamento financeiro,
+-- portanto os dados serão gravados nas tabelas
+-- reserva e faturamento, na mesma transação.
 --============================================================
 
-create procedure sp_CriarReserva_SpeedPark
+create procedure sp_CadReserva_SpeedPark
 (
-	@pistaCodigo    varchar(20),
-	@data           date,
-	@horario        time,
-	@participante   varchar(100),  -- reserva de balcão (admin): nome de quem vai correr
-	@clienteCodigo  int,           -- piloto que reserva (null = balcão)
-	@dependenteId   int,           -- filho do piloto (null = o próprio piloto corre)
-	@formato        varchar(10),   -- 'tempo' ou 'voltas' (null = sem cobrança)
-	@qtd            int,
-	@formaPagamento varchar(30)
+    @clienteCodigo  int,
+    @participante   varchar(100),
+    @pistaNr        int,
+    @data           date,
+    @horario        time,
+    @formato        varchar(10),
+    @qtd            int,
+    @formaPagamento varchar(30),
+    @valor          decimal(19,2),
+    @descricao      varchar(200)
 )
 as
 begin
 
-	-- para o sistema Java ler só o resultado final da procedure
-	set nocount on
+    set nocount on
 
-	begin try
+    begin try
 
-		declare @pistaNr        int
-		declare @nomePista      varchar(100)
-		declare @categoriaPista varchar(20)
-		declare @capacidade     int
-		declare @precoMin       decimal(10,2)
-		declare @precoVolta     decimal(10,2)
-		declare @nascimento     date
-		declare @categoria      varchar(10)
-		declare @donoDependente int
-		declare @ocupadas       int
-		declare @valor          decimal(19,2)
-		declare @idReserva      int
+        begin tran
 
-		begin tran
+        insert into Reserva
+        (
+            cliente_codigo,
+            participante,
+            pista_nr,
+            data,
+            horario,
+            formato,
+            qtd,
+            forma_pagamento,
+            valor,
+            criada_em
+        )
+        values
+        (
+            @clienteCodigo,
+            @participante,
+            @pistaNr,
+            @data,
+            @horario,
+            @formato,
+            @qtd,
+            @formaPagamento,
+            @valor,
+            getdate()
+        )
 
-		-- 1) Confere a pista e busca capacidade, categoria e preços
-		select
-			@pistaNr = nr,
-			@nomePista = nome,
-			@categoriaPista = categoria,
-			@capacidade = capacidade,
-			@precoMin = preco_por_min,
-			@precoVolta = preco_por_volta
-		from Pista
-		where codigo = @pistaCodigo
+        declare @idReserva int
 
-		if @pistaNr is null
-		begin
-			rollback tran
-			select 50003 as NumeroErro, N'Pista não encontrada.' as MensagemErro
-			return
-		end
+        set @idReserva = scope_identity()
 
-		-- 2) Quando um piloto reserva: descobre quem vai correr e confere a categoria
-		if @clienteCodigo is not null
-		begin
+        -- reserva lançada no balcão, sem cobrança, não gera lançamento
+        if @valor is not null
+        begin
+            insert into Faturamento
+            (
+                data,
+                valor,
+                descricao,
+                forma_pagamento,
+                status
+            )
+            values
+            (
+                cast(getdate() as date),
+                @valor,
+                @descricao,
+                @formaPagamento,
+                'pago'
+            )
+        end
 
-			if not exists (select 1 from Cliente where pessoa_codigo = @clienteCodigo)
-			begin
-				rollback tran
-				select 50004 as NumeroErro, N'Apenas pilotos cadastrados podem reservar.' as MensagemErro
-				return
-			end
+        select
+            R.id,
+            R.participante,
+            R.data,
+            R.horario,
+            R.valor
+        from Reserva R
+        where R.id = @idReserva
 
-			if @dependenteId is not null
-			begin
-				-- reserva para um filho do piloto
-				select
-					@donoDependente = responsavel_codigo,
-					@participante = nome,
-					@nascimento = nascimento
-				from Dependente
-				where id = @dependenteId
+        commit tran
 
-				if @donoDependente is null
-				begin
-					rollback tran
-					select 50005 as NumeroErro, N'Dependente não encontrado.' as MensagemErro
-					return
-				end
+    end try
 
-				if @donoDependente <> @clienteCodigo
-				begin
-					rollback tran
-					select 50006 as NumeroErro, N'Este dependente pertence a outro piloto.' as MensagemErro
-					return
-				end
-			end
-			else
-			begin
-				-- o próprio piloto corre: nome e nascimento vêm do cadastro
-				select
-					@participante = PE.nome,
-					@nascimento = C.data_nascimento
-				from Cliente as C
-				inner join Pessoa as PE
-					on PE.codigo = C.pessoa_codigo
-				where C.pessoa_codigo = @clienteCodigo
-			end
+    begin catch
 
-			-- cada pista aceita somente a sua categoria
-			set @categoria = dbo.fc_CategoriaPorIdade_SpeedPark(@nascimento)
+        if @@trancount > 0
+            rollback tran
 
-			if @categoria <> @categoriaPista
-			begin
-				rollback tran
-				select
-					50002 as NumeroErro,
-					N'Categoria ' + upper(@categoria) + N' não pode correr na '
-						+ @nomePista + N' (pista ' + upper(@categoriaPista) + N').' as MensagemErro
-				return
-			end
+        select
+            error_number() as NumeroErro,
+            error_message() as MensagemErro
 
-		end
-
-		-- 3) Confere as vagas do horário
-		select @ocupadas = count(*)
-		from Reserva
-		where pista_nr = @pistaNr
-		  and data     = @data
-		  and horario  = @horario
-
-		if @ocupadas >= @capacidade
-		begin
-			rollback tran
-			select 50001 as NumeroErro, N'Horário lotado nesta pista.' as MensagemErro
-			return
-		end
-
-		-- 4) Calcula o valor (por minuto ou por volta, conforme a pista)
-		if @formato is not null
-		begin
-
-			if @qtd is null or @qtd <= 0
-			begin
-				rollback tran
-				select 50007 as NumeroErro, N'Quantidade inválida.' as MensagemErro
-				return
-			end
-
-			if @formato = 'tempo'
-				set @valor = @precoMin * @qtd
-			else
-				set @valor = @precoVolta * @qtd
-
-		end
-
-		-- 5) Grava a reserva
-		insert into Reserva
-		(
-			cliente_codigo,
-			participante,
-			pista_nr,
-			data,
-			horario,
-			formato,
-			qtd,
-			forma_pagamento,
-			valor,
-			criada_em
-		)
-		values
-		(
-			@clienteCodigo,
-			@participante,
-			@pistaNr,
-			@data,
-			@horario,
-			@formato,
-			@qtd,
-			@formaPagamento,
-			@valor,
-			getdate()
-		)
-
-		set @idReserva = scope_identity()
-
-		-- 6) Gera o lançamento financeiro da reserva
-		if @valor is not null
-		begin
-			insert into Faturamento
-			(
-				data,
-				valor,
-				descricao,
-				forma_pagamento,
-				status
-			)
-			values
-			(
-				cast(getdate() as date),
-				@valor,
-				N'Reserva ' + @nomePista + N' ' + convert(varchar(10), @data, 103)
-					+ N' ' + left(convert(varchar(8), @horario), 5) + N' - ' + @participante,
-				@formaPagamento,
-				'pago'
-			)
-		end
-
-		-- devolve o número da reserva criada
-		select @idReserva as id
-
-		commit tran
-
-	end try
-
-	begin catch
-
-		if @@trancount > 0
-			rollback tran
-
-		select
-			error_number() as NumeroErro,
-			error_message() as MensagemErro
-
-	end catch
+    end catch
 
 end
 go
@@ -915,15 +693,17 @@ go
 -- testando a procedure
 --============================================================
 
--- 1) o piloto 11 (adulto, categoria open) reserva a Pista 3 (open):
--- grava a reserva e o lançamento financeiro
-exec sp_CriarReserva_SpeedPark
-	'pista3', '2030-01-08', '10:00', null, 11, null, 'tempo', 10, 'pix'
-go
-
--- 2) o mesmo piloto tenta a Pista 1 (kids): a procedure recusa e nada é gravado
-exec sp_CriarReserva_SpeedPark
-	'pista1', '2030-01-08', '10:00', null, 11, null, 'tempo', 10, 'pix'
+exec sp_CadReserva_SpeedPark
+    11,
+    'Gabriel Mendes',
+    3,
+    '2030-01-08',
+    '10:00',
+    'tempo',
+    10,
+    'pix',
+    100.00,
+    'Reserva Pista 3 08/01/2030 10:00 - Gabriel Mendes'
 go
 
 select * from Reserva
@@ -937,9 +717,9 @@ go
 -- TIPO: MULTI-STATEMENT TABLE VALUED FUNCTION
 -- OBJETIVO:
 -- Retornar uma tabela com o ranking das corridas encerradas:
--- corridas disputadas, vitórias, pontos (25-18-15-12-10-8-6-4-2-1,
--- como na Fórmula 1) e melhor volta de cada piloto, podendo
--- filtrar pelo mínimo de corridas e por pista (NULL = todas).
+-- corridas disputadas, vitórias e pontos de cada piloto,
+-- filtrando pelo mínimo de corridas e, se desejado, por pista
+-- (NULL = todas as pistas).
 --============================================================
 
 create function fc_RankingPilotos_SpeedPark
@@ -949,11 +729,10 @@ create function fc_RankingPilotos_SpeedPark
 )
 returns @tb_RankingPilotos table
 (
-	Piloto       varchar(100),
-	Corridas     int,
-	Vitorias     int,
-	Pontos       int,
-	Melhor_Volta decimal(8,3)
+	Piloto   varchar(100),
+	Corridas int,
+	Vitorias int,
+	Pontos   int
 )
 as
 begin
@@ -963,18 +742,17 @@ begin
 		Piloto,
 		Corridas,
 		Vitorias,
-		Pontos,
-		Melhor_Volta
+		Pontos
 	)
 
 	select
 		min(RS.piloto_nome),
 		count(*),
 
-		-- vitórias = chegou em 1º lugar
+		-- vitória = chegou em 1º lugar
 		sum(case when RS.posicao = 1 then 1 else 0 end),
 
-		-- pontos conforme a posição de chegada
+		-- pontos conforme a posição de chegada (como na Fórmula 1)
 		sum(case RS.posicao
 				when 1  then 25
 				when 2  then 18
@@ -987,10 +765,7 @@ begin
 				when 9  then 2
 				when 10 then 1
 				else 0
-			end),
-
-		-- melhor volta (tempos que não são números ficam de fora)
-		min(try_cast(RS.melhor_volta as decimal(8,3)))
+			end)
 
 	from Resultado as RS
 
@@ -1003,7 +778,6 @@ begin
 	where PV.status = 'encerrada'
 	and (@PistaCodigo is null or P.codigo = @PistaCodigo)
 
-	-- o mesmo piloto com maiúsculas/espaços diferentes conta como um só
 	group by lower(ltrim(rtrim(RS.piloto_nome)))
 
 	having count(*) >= @MinimoCorridas
@@ -1017,12 +791,12 @@ go
 -- TESTANDO A FUNCTION
 --============================================================
 
--- encerra uma corrida de teste para ter resultados
+-- cadastra uma corrida encerrada de teste para ter resultados
 insert into Prova (numero, pista_nr, duracao_seg, status) values (1, 3, 600, 'encerrada')
 go
 
 insert into Resultado (prova_id, posicao, kart, piloto_nome, melhor_volta, penalidades)
-values ((select max(id) from Prova), 1, '3', 'Ana Souza',  '55.4', null)
+values ((select max(id) from Prova), 1, '3', 'Ana Souza', '55.4', null)
 go
 
 insert into Resultado (prova_id, posicao, kart, piloto_nome, melhor_volta, penalidades)
@@ -1032,10 +806,9 @@ go
 select *
 from fc_RankingPilotos_SpeedPark
 (
-	1,
-	null
+    1,
+    null
 )
-order by Pontos desc
 go
 
 --============================================================
@@ -1051,16 +824,13 @@ go
 
 create table LOG_HistoricoNovaReserva
 (
-	idLog        int           not null identity primary key,
-	idReserva    int           not null,
+	idLog        int          not null identity primary key,
+	idReserva    int          not null,
 	idCliente    int,
-	idPista      int           not null,
-	participante varchar(100)  not null,
-	dataReserva  date          not null,
-	horario      time          not null,
+	participante varchar(100) not null,
 	valor        decimal(19,2),
-	data         datetime      not null,
-	usuario      varchar(100)  not null
+	data         datetime     not null,
+	usuario      varchar(100) not null
 )
 go
 
@@ -1082,10 +852,7 @@ begin
 	(
 		idReserva,
 		idCliente,
-		idPista,
 		participante,
-		dataReserva,
-		horario,
 		valor,
 		data,
 		usuario
@@ -1093,10 +860,7 @@ begin
 	select
 		I.id,
 		I.cliente_codigo,
-		I.pista_nr,
 		I.participante,
-		I.data,
-		I.horario,
 		I.valor,
 		GETDATE(),
 		SYSTEM_USER
@@ -1139,80 +903,4 @@ go
 -- se a trigger registrou a nova reserva
 
 select * from LOG_HistoricoNovaReserva
-go
-
---============================================================
--- TRIGGER: auditoria das alterações do financeiro
---
--- Objetivo:
--- Guardar o valor antes e depois sempre que o status ou o
--- valor de um lançamento financeiro for alterado (por exemplo,
--- de pendente para pago), registrando quando e por quem.
---============================================================
-
--- 1) Criar uma tabela de LOG para armazenar as alterações
-
-create table LOG_AuditoriaFaturamento
-(
-	idLog          int           not null identity primary key,
-	idFaturamento  int           not null,
-	statusAnterior varchar(20),
-	statusNovo     varchar(20),
-	valorAnterior  decimal(19,2),
-	valorNovo      decimal(19,2),
-	data           datetime      not null,
-	usuario        varchar(100)  not null
-)
-go
-
--- 2) Criar a trigger
---
--- Tabela: faturamento
--- Operação/evento: update
--- Tipo: AFTER
-
-create trigger tg_AuditoriaFaturamento
-on    Faturamento
-after update
-as
-begin
-	-- cadastrar no log somente quando status ou valor mudaram
-	insert into LOG_AuditoriaFaturamento
-	(
-		idFaturamento,
-		statusAnterior,
-		statusNovo,
-		valorAnterior,
-		valorNovo,
-		data,
-		usuario
-	)
-	select
-		D.id,
-		D.status,
-		I.status,
-		D.valor,
-		I.valor,
-		GETDATE(),
-		SYSTEM_USER
-	from inserted as I
-	inner join deleted as D
-		on D.id = I.id
-	where D.status <> I.status
-	or    D.valor  <> I.valor
-end
-go
-
--- 3) Testar a trigger
--- Alterar o status de um lançamento para disparar a trigger
-
-update Faturamento
-set status = 'pendente'
-where id = (select max(id) from Faturamento)
-go
-
--- 4) Consultar a tabela de LOG para verificar
--- se a trigger registrou a alteração
-
-select * from LOG_AuditoriaFaturamento
 go

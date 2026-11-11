@@ -134,7 +134,7 @@ t "encerrar de novo -> 409" 409 POST /provas/$PVID/encerrar "$ADM" "{\"posicoes\
 t "historico mostra o resultado -> 200" 200 GET /provas/historico ""
 echo "$BODY" | grep -q '"nome":"QA Racer Dois","melhorVolta":"58.4","penalidades":"+5s"' || { FAIL=$((FAIL+1)); echo "  FALHA resultado nao apareceu no historico: $BODY" | cut -c1-200; }
 t "FUNCTION ranking -> 200" 200 GET "/relatorios/ranking?minimoCorridas=1" "$ADM"
-echo "$BODY" | grep -q '"Piloto":"QA Racer Dois"' && echo "$BODY" | grep -q '"Melhor_Volta":58.4' || { FAIL=$((FAIL+1)); echo "  FALHA ranking da function nao trouxe QA Racer Dois com melhor volta 58.4: $(echo "$BODY" | cut -c1-200)"; }
+echo "$BODY" | grep -q '"Piloto":"QA Racer Dois"' && echo "$BODY" | grep -q '"Pontos":25' || { FAIL=$((FAIL+1)); echo "  FALHA ranking da function nao trouxe QA Racer Dois com 25 pontos: $(echo "$BODY" | cut -c1-200)"; }
 t "FUNCTION ranking filtrando outra pista (pista3) -> 200" 200 GET "/relatorios/ranking?minimoCorridas=1&pista=pista3" "$ADM"
 echo "$BODY" | grep -q 'QA Racer' && { FAIL=$((FAIL+1)); echo "  FALHA filtro por pista da function nao funcionou"; }
 t "FUNCTION ranking exigindo 99 corridas -> 200 vazio" 200 GET "/relatorios/ranking?minimoCorridas=99" "$ADM"
@@ -180,32 +180,21 @@ t "valor negativo -> 400" 400 POST /faturamento "$ADM" '{"valor":-5}'
 t "status invalido -> 400" 400 POST /faturamento "$ADM" '{"valor":5,"status":"talvez"}'
 t "apagar lancamento -> 204" 204 DELETE /faturamento/$FID "$ADM"
 
-echo "== Relatorios (views, function e triggers do banco)"
+echo "== Relatorios (view, function e trigger do banco)"
 t "sem login -> 401" 401 GET /relatorios/reservas ""
 t "piloto nao acessa relatorios -> 403" 403 GET /relatorios/reservas "$PIL"
 t "VIEW de reservas -> 200" 200 GET /relatorios/reservas "$ADM"
 t "VIEW de reservas filtrada por periodo -> 200" 200 GET "/relatorios/reservas?de=2020-01-01&ate=2099-12-31" "$ADM"
 t "periodo invalido -> 400" 400 GET "/relatorios/reservas?de=ontem" "$ADM"
-t "VIEW financeira -> 200" 200 GET /relatorios/financeiro "$ADM"
-echo "$BODY" | grep -q 'Total_Pago' || { FAIL=$((FAIL+1)); echo "  FALHA view financeira sem a coluna Total_Pago"; }
 # a reserva criada pela PROCEDURE deve aparecer na VIEW e ter disparado a TRIGGER
 t "reserva criada pela procedure -> 201" 201 POST /reservas "$PIL" "{\"data\":\"$DATA\",\"hora\":\"18:00\",\"pistaId\":\"pista3\",\"nome\":\"x\",\"formato\":\"voltas\",\"qtd\":5,\"formaPagamento\":\"dinheiro\"}"
 RVID=$(j id)
 req GET /relatorios/reservas "$ADM"
 echo "$BODY" | grep -q "\"No_Reserva\":$RVID" || { FAIL=$((FAIL+1)); echo "  FALHA reserva $RVID nao apareceu na view v_Relatorio_Reservas_SpeedPark"; }
-echo "$BODY" | grep -q '"Origem":"Site (piloto)"' || { FAIL=$((FAIL+1)); echo "  FALHA view deveria traduzir a origem (Site (piloto))"; }
+echo "$BODY" | grep -q '"Forma_Pagamento":"Dinheiro"' || { FAIL=$((FAIL+1)); echo "  FALHA view deveria traduzir a forma de pagamento (dinheiro -> Dinheiro)"; }
 req GET /relatorios/auditoria/reservas "$ADM"
 echo "$BODY" | grep -q "\"idReserva\":$RVID" && OK=$((OK+1)) && echo "  ok   TRIGGER registrou a reserva $RVID no LOG_HistoricoNovaReserva" || { FAIL=$((FAIL+1)); echo "  FALHA trigger nao registrou a reserva $RVID no log"; }
-# alterar status de um lancamento dispara a trigger de auditoria do financeiro
-t "novo lancamento pendente -> 201" 201 POST /faturamento "$ADM" '{"valor":33.30,"descricao":"QA trigger","formaPagamento":"pix","status":"pendente"}'
-TFID=$(j id)
-t "marcar como pago -> 200" 200 PUT /faturamento/$TFID "$ADM" '{"status":"pago"}'
-req GET /relatorios/auditoria/faturamento "$ADM"
-echo "$BODY" | grep -q "\"idFaturamento\":$TFID,\"statusAnterior\":\"pendente\",\"statusNovo\":\"pago\"" && OK=$((OK+1)) && echo "  ok   TRIGGER registrou pendente -> pago do lancamento $TFID" || { FAIL=$((FAIL+1)); echo "  FALHA trigger de auditoria nao registrou a mudanca: $(echo "$BODY" | cut -c1-200)"; }
-t "alterar so a descricao nao gera auditoria -> 200" 200 PUT /faturamento/$TFID "$ADM" '{"descricao":"QA trigger 2"}'
-t "apaga o lancamento do teste -> 204" 204 DELETE /faturamento/$TFID "$ADM"
 t "cancela a reserva do teste -> 204" 204 DELETE /reservas/$RVID "$PIL"
-echo "$(curl -s "$B/relatorios/financeiro" -H "Authorization: Bearer $ADM")" > /dev/null
 
 echo "== CRUD antigo: validacao e 409 no lugar de 500"
 t "pessoa sem nome -> 400" 400 POST /pessoas "$ADM" '{"cpf":"77777777777"}'

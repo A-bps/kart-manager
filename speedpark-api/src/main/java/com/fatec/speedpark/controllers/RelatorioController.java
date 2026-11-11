@@ -15,7 +15,7 @@ import com.fatec.speedpark.services.RelatorioService;
 
 import lombok.RequiredArgsConstructor;
 
-/** Relatorios do admin: lidos das views, da function e dos logs das triggers do banco (so admin). */
+/** Relatorios do admin: lidos da view, da function e do log da trigger do banco (so admin). */
 @RestController
 @RequestMapping("/api/relatorios")
 @RequiredArgsConstructor
@@ -30,13 +30,6 @@ public class RelatorioController {
         return ResponseEntity.ok(service.reservas(de, ate));
     }
 
-    @GetMapping("/financeiro")
-    public ResponseEntity<List<Map<String, Object>>> financeiro(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate de,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate ate) {
-        return ResponseEntity.ok(service.financeiro(de, ate));
-    }
-
     @GetMapping("/ranking")
     public ResponseEntity<List<Map<String, Object>>> ranking(
             @RequestParam(defaultValue = "1") int minimoCorridas,
@@ -49,8 +42,4 @@ public class RelatorioController {
         return ResponseEntity.ok(service.auditoriaReservas());
     }
 
-    @GetMapping("/auditoria/faturamento")
-    public ResponseEntity<List<Map<String, Object>>> auditoriaFaturamento() {
-        return ResponseEntity.ok(service.auditoriaFaturamento());
-    }
 }

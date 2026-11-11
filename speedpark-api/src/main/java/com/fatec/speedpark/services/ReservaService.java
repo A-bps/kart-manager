@@ -1,9 +1,12 @@
 package com.fatec.speedpark.services;
 
+import java.math.BigDecimal;
 import java.sql.Types;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -18,8 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fatec.speedpark.dto.ReservaRequest;
 import com.fatec.speedpark.dto.ReservaView;
+import com.fatec.speedpark.entities.Cliente;
+import com.fatec.speedpark.entities.Dependente;
+import com.fatec.speedpark.entities.Pista;
 import com.fatec.speedpark.entities.Reserva;
-import com.fatec.speedpark.exceptions.ErrosBanco;
+import com.fatec.speedpark.exceptions.ConflitoException;
+import com.fatec.speedpark.repositories.ClienteRepository;
+import com.fatec.speedpark.repositories.DependenteRepository;
+import com.fatec.speedpark.repositories.PistaRepository;
 import com.fatec.speedpark.repositories.ReservaRepository;
 import com.fatec.speedpark.security.TokenService;
 
@@ -36,6 +45,9 @@ public class ReservaService {
     private static final Set<Integer> QTD_VOLTAS = Set.of(5, 10, 15, 20);
 
     private final ReservaRepository repository;
+    private final PistaRepository pistaRepository;
+    private final ClienteRepository clienteRepository;
+    private final DependenteRepository dependenteRepository;
     private final JdbcTemplate jdbc;
 
     // ponytail: findAll + filtro em memoria; paginar por data se a tabela crescer muito
@@ -47,7 +59,7 @@ public class ReservaService {
                 .toList();
     }
 
-    // Sem @Transactional de proposito: a transacao da reserva e da procedure (begin tran / commit / rollback).
+    // Sem @Transactional de proposito: a transacao (reserva + lancamento financeiro) e da stored procedure.
     public ReservaView criar(ReservaRequest r, Authentication auth) {
         boolean admin = TokenService.ehAdmin(auth);
         boolean comCobranca = r.formato() != null || r.qtd() != null;
@@ -62,21 +74,66 @@ public class ReservaService {
         }
         validarDataEHora(r.data(), r.hora());
 
-        // A reserva (pista, categoria pela idade, vagas, valor, gravar Reserva + Faturamento) e feita pela
-        // stored procedure sp_CriarReserva_SpeedPark. O piloto e identificado pelo token;
-        // nome e categoria do participante vem do cadastro, nunca do pedido.
-        Integer clienteCodigo = admin ? null : TokenService.codigo(auth);
-        List<Map<String, Object>> retorno = jdbc.queryForList("exec dbo.sp_CriarReserva_SpeedPark ?, ?, ?, ?, ?, ?, ?, ?, ?",
-                r.pistaId(), r.data(), r.hora(), r.nome().trim(),
+        Pista pista = pistaRepository.findByCodigo(r.pistaId())
+                .orElseThrow(() -> new NoSuchElementException("Pista não encontrada: " + r.pistaId()));
+
+        // quem corre: o piloto logado ou um dependente dele (nome e categoria vem do cadastro, nunca do pedido);
+        // a reserva de balcao (admin) so informa o nome
+        Integer clienteCodigo = null;
+        String participante = r.nome().trim();
+        if (!admin) {
+            Cliente cliente = clienteRepository.findById(TokenService.codigo(auth))
+                    .orElseThrow(() -> new AccessDeniedException("Apenas pilotos cadastrados podem reservar."));
+            clienteCodigo = cliente.getPessoaCodigo();
+            String categoria;
+            if (r.dependenteId() != null) {
+                Dependente dep = dependenteRepository.findById(r.dependenteId())
+                        .orElseThrow(() -> new NoSuchElementException("Dependente não encontrado: " + r.dependenteId()));
+                if (!dep.getResponsavel().getPessoaCodigo().equals(clienteCodigo)) {
+                    throw new AccessDeniedException("Este dependente pertence a outro piloto.");
+                }
+                participante = dep.getNome();
+                categoria = Categoria.de(dep.getNascimento());
+            } else {
+                participante = cliente.getPessoa().getNome();
+                categoria = Categoria.de(cliente.getDataNascimento());
+            }
+            // cada pista aceita somente a sua categoria (crianca na Open, adulto na Kids...)
+            if (!categoria.equals(pista.getCategoria())) {
+                throw new IllegalArgumentException("Categoria " + categoria.toUpperCase() + " não pode correr na "
+                        + pista.getNome() + " (pista " + pista.getCategoria().toUpperCase() + ").");
+            }
+        }
+
+        // ponytail: vagas conferidas aqui, sem trava no banco; duas reservas no mesmo instante podem passar da capacidade
+        if (repository.countByPistaAndDataAndHorario(pista, r.data(), r.hora()) >= pista.getCapacidade()) {
+            throw new ConflitoException("Horário lotado nesta pista.");
+        }
+
+        BigDecimal valor = null;
+        if (r.formato() != null) {
+            BigDecimal unitario = r.formato().equals("tempo") ? pista.getPrecoPorMin() : pista.getPrecoPorVolta();
+            valor = unitario.multiply(BigDecimal.valueOf(r.qtd()));
+        }
+        String descricao = "Reserva " + pista.getNome() + " " + r.data().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                + " " + r.hora() + " - " + participante;
+
+        List<Map<String, Object>> retorno = jdbc.queryForList("exec dbo.sp_CadReserva_SpeedPark ?, ?, ?, ?, ?, ?, ?, ?, ?, ?",
                 new SqlParameterValue(Types.INTEGER, clienteCodigo),
-                new SqlParameterValue(Types.INTEGER, r.dependenteId()),
+                participante,
+                pista.getNr(),
+                r.data(),
+                r.hora(),
                 new SqlParameterValue(Types.VARCHAR, r.formato()),
                 new SqlParameterValue(Types.INTEGER, r.qtd()),
-                new SqlParameterValue(Types.VARCHAR, r.formaPagamento()));
-        // a procedure devolve a coluna id (sucesso) ou NumeroErro/MensagemErro (falha, ja com rollback feito)
+                new SqlParameterValue(Types.VARCHAR, r.formaPagamento()),
+                new SqlParameterValue(Types.DECIMAL, valor),
+                descricao);
+
+        // a procedure devolve a reserva criada (coluna id) ou, se deu erro, NumeroErro e MensagemErro (ja com rollback)
         Map<String, Object> linha = retorno.get(0);
         if (linha.containsKey("NumeroErro")) {
-            throw ErrosBanco.traduzir(((Number) linha.get("NumeroErro")).intValue(), String.valueOf(linha.get("MensagemErro")));
+            throw new IllegalStateException("Erro no banco de dados (" + linha.get("NumeroErro") + "): " + linha.get("MensagemErro"));
         }
         Integer reservaId = ((Number) linha.get("id")).intValue();
         return ReservaView.de(repository.findById(reservaId)
@@ -107,7 +164,7 @@ public class ReservaService {
 
     // de h em h 2 horas, de inicio ate fim
     private static Set<LocalTime> horarios(int inicio, int fim) {
-        Set<LocalTime> s = new java.util.HashSet<>();
+        Set<LocalTime> s = new HashSet<>();
         for (int h = inicio; h <= fim; h += 2) {
             s.add(LocalTime.of(h, 0));
         }

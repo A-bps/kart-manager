@@ -136,7 +136,7 @@ O login devolve um **token JWT** (válido por 8 h) que deve ir em `Authorization
 | `GET` | `/api/provas/historico` | público | corridas encerradas (alimenta o ranking da página inicial e o histórico do piloto) |
 | `GET/POST/DELETE` | `/api/provas/ativas`, `/api/provas`, `/api/provas/{id}` | admin | corridas em andamento: iniciar (uma por pista) e apagar |
 | `POST` | `/api/provas/{id}/encerrar` | admin | grava o resultado final e move a corrida para o histórico |
-| `GET` | `/api/relatorios/reservas`, `/financeiro`, `/ranking`, `/auditoria/reservas`, `/auditoria/financeiro` | admin | consultas das views, da function e dos logs das triggers do banco (filtros `de`, `ate`, `minimoCorridas`, `pista`) |
+| `GET` | `/api/relatorios/reservas`, `/ranking`, `/auditoria/reservas` | admin | consultas da view, da function e do log da trigger do banco (filtros `de`, `ate`, `minimoCorridas`, `pista`) |
 | `GET/POST/PUT/DELETE` | `/api/faturamento` | admin | lançamentos financeiros |
 | qualquer | demais rotas abaixo | admin | CRUD completo |
 
@@ -224,22 +224,18 @@ Cobre: clientes, funcionários e gerentes, pistas, karts e manutenções, corrid
 
 ### Administração de banco de dados (Etapa 3 do Projeto de Extensão)
 
-Os recursos abaixo ficam no bloco **"ADMINISTRAÇÃO DE BANCO DE DADOS"** do `Banco_de_dados-Kartodromo.sql` (com cabeçalho explicativo e teste de cada um, no estilo do relatório) e **são chamados pelo sistema Java**:
+O relatório de referência pede, no mínimo, **1 procedure, 1 view, 1 trigger e 1 function que retorna tabela**, todas chamadas pelo sistema Java, mais o backup/restore (bônus). O projeto tem exatamente isso, no bloco **"ADMINISTRAÇÃO DE BANCO DE DADOS"** do `Banco_de_dados-Kartodromo.sql` (cabeçalho com **Objetivo** e o teste logo abaixo de cada objeto, como no modelo):
 
 | Recurso | Nome | Para que serve | Quem chama no Java |
 |---|---|---|---|
-| **Procedure** | `sp_CriarReserva_SpeedPark` | Transação completa da reserva (`begin try / begin tran / commit / rollback`): valida pista, categoria pela idade e vagas, calcula o valor e grava `Reserva` + `Faturamento`. Em caso de erro desfaz tudo e devolve `NumeroErro` e `MensagemErro` | `POST /api/reservas` |
-| **View** | `v_Relatorio_Reservas_SpeedPark` | Consulta complexa: reserva + pista + piloto + valor + situação + ocupação do horário | `GET /api/relatorios/reservas` |
-| **View** | `v_Resumo_Financeiro_SpeedPark` | Total pago e pendente por dia e forma de pagamento, com ticket médio | `GET /api/relatorios/financeiro` |
-| **Function (tabela)** | `fc_RankingPilotos_SpeedPark(minCorridas, pista)` | Ranking com pontuação estilo F1, vitórias e melhor volta | `GET /api/relatorios/ranking` |
-| **Function (escalar)** | `fc_CategoriaPorIdade_SpeedPark` | Regra kids / junior / open pela idade, usada pela procedure | dentro da procedure |
-| **Trigger** | `tg_HistNovaReserva` (em `Reserva`) | Grava em `LOG_HistoricoNovaReserva` toda reserva criada | disparada pela reserva do Java |
-| **Trigger** | `tg_AuditoriaFaturamento` (em `Faturamento`) | Guarda o antes/depois de status e valor em `LOG_AuditoriaFaturamento` | disparada ao marcar pago/pendente no Java |
+| **Procedure** | `sp_CadReserva_SpeedPark` | Cadastra a reserva e o lançamento financeiro na mesma transação (`begin try / begin tran / commit / rollback`); no erro, desfaz tudo e devolve `NumeroErro` e `MensagemErro` | `POST /api/reservas` |
+| **View** | `v_Relatorio_Reservas_SpeedPark` | Consulta com `join`s e `case`: reserva + pista + piloto + forma de pagamento + situação | `GET /api/relatorios/reservas` |
+| **Function (tabela)** | `fc_RankingPilotos_SpeedPark(minCorridas, pista)` | Ranking com corridas, vitórias e pontos estilo F1 | `GET /api/relatorios/ranking` |
+| **Trigger** | `tg_HistNovaReserva` (em `Reserva`, `after insert`) | Grava em `LOG_HistoricoNovaReserva` cada reserva criada | disparada pela reserva feita pelo Java |
 
-- Tudo aparece na tela do admin em **Relatórios** (consultas das views e da function, e o histórico gravado pelas triggers).
-- O script segue o modelo do relatório: `create` simples, cabeçalho com **Objetivo** e o teste logo abaixo de cada objeto ("Testando a view", "testando a procedure", "TESTANDO A FUNCTION", trigger em 4 passos).
+- As regras de negócio (categoria pela idade, vagas, valor) ficam no Java (`ReservaService`); a procedure só grava, como no exemplo.
+- Tudo aparece na tela do admin em **Relatórios** (view, function e o histórico gravado pela trigger).
 - Se o banco foi criado só pelo Hibernate (sem o script), a própria API cria os objetos que faltam ao subir (`BancoRecursosInicializador`): ela lê este mesmo script e executa apenas os `create` de objetos que ainda não existem, ignorando os testes.
-- Os erros da procedure (`NumeroErro` 50001...) viram HTTP 409/400/403/404 no Java (`ErrosBanco`).
 
 ### Backup e Restore
 
