@@ -690,6 +690,16 @@ begin
 
         begin tran
 
+        -- trava as reservas do mesmo horário e pista: duas pessoas ao mesmo tempo
+        -- não conseguem passar da capacidade da pista
+        if (select count(*)
+            from Reserva with (updlock, holdlock)
+            where pista_nr = @pistaNr
+            and data = @data
+            and horario = @horario)
+            >= (select capacidade from Pista where nr = @pistaNr)
+            raiserror('Horario lotado nesta pista.', 16, 1)
+
         insert into Reserva
         (
             cliente_codigo,

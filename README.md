@@ -47,7 +47,7 @@ Projeto-Kartodromo/
         ├── security/                     # Login JWT, BCrypt e CORS
         ├── config/                       # Dados iniciais (pistas e conta de admin)
         └── exceptions/                   # Tratamento global de erros
-    └── tests/smoke.sh                    # Teste automatizado da API (131 verificações)
+    └── tests/smoke.sh                    # Teste automatizado da API (156 verificações)
 ```
 
 ---
@@ -130,9 +130,9 @@ O login devolve um **token JWT** (válido por 8 h) que deve ir em `Authorization
 | `GET` | `/api/auth/me` | logado | dados de quem está logado |
 | `GET/POST/DELETE` | `/api/pilotos` | admin | lista, cadastra e apaga pilotos |
 | `GET/PUT` | `/api/pilotos/{id}` | o próprio piloto ou admin | ver e editar perfil |
-| `GET/POST/DELETE` | `/api/reservas` | logado | piloto vê/cria/cancela as suas; admin todas (preço e vagas calculados no servidor) |
+| `GET/POST/PUT/DELETE` | `/api/reservas` | logado | piloto vê/cria/remarca/cancela as suas; admin todas (preço e vagas calculados no servidor) |
 | `GET` | `/api/karts`, `/api/pistas` | logado | leitura da frota e das pistas |
-| `GET/POST/DELETE` | `/api/dependentes` | logado (só os próprios) | filhos do piloto, usados ao agendar |
+| `GET/POST/PUT/DELETE` | `/api/dependentes` | logado (só os próprios) | filhos do piloto, usados ao agendar |
 | `GET` | `/api/provas/historico` | público | corridas encerradas (alimenta o ranking da página inicial e o histórico do piloto) |
 | `GET/POST/DELETE` | `/api/provas/ativas`, `/api/provas`, `/api/provas/{id}` | admin | corridas em andamento: iniciar (uma por pista) e apagar |
 | `POST` | `/api/provas/{id}/encerrar` | admin | grava o resultado final e move a corrida para o histórico |
@@ -207,7 +207,7 @@ print(requests.get("http://localhost:8080/api/ufs", headers={"Authorization": f"
 
 ### Testes
 
-Com a API no ar, `ADMIN_SENHA='sua_senha' bash speedpark-api/tests/smoke.sh` roda 131 verificações (login, senha esquecida, permissões, validação, reservas, corridas, dependentes, financeiro, relatórios, triggers, procedures, erros 409) e apaga os dados que criou.
+Com a API no ar, `ADMIN_SENHA='sua_senha' bash speedpark-api/tests/smoke.sh` roda 156 verificações (login, senha esquecida, permissões, validação, reservas, corridas, dependentes, financeiro, relatórios, triggers, procedures, erros 409) e apaga os dados que criou.
 
 Há também testes unitários do bloqueio de tentativas (`cd speedpark-api && ./mvnw test`), que usam um relógio simulado para provar o desbloqueio sem esperar 15 minutos.
 
@@ -245,6 +245,16 @@ Requisitos da Etapa 3 e onde cada um está atendido. Os recursos ficam no bloco 
 - **DER e Dicionário de Dados:** `Banco-Kartodromo/DER-SpeedPark.png` (fonte `DER-SpeedPark.mmd`) e `Banco-Kartodromo/Dicionario-de-Dados-SpeedPark.md` (colunas, tipos, chaves, referências e restrições, gerados do banco real).
 - Se o banco foi criado só pelo Hibernate (sem o script), a própria API cria os objetos que faltam ao subir (`BancoRecursosInicializador`): ela lê este mesmo script e executa apenas os `create` de objetos que ainda não existem, ignorando os testes.
 - Atenção: o script oficial **não altera** objeto que já existe; para mudar uma procedure/view/function é preciso apagá-la (`drop`) antes.
+
+### Etapa 3 – itens 5.1 e 5.3 (CRUD, visualização e backup)
+
+- **5.1 – Java com SQL Server:** a API (Spring Boot) conecta no SQL Server (`KartManager`) e **todos os dados do projeto têm CRUD completo** pela API (`/api/...`). Na interface do admin:
+  - telas dedicadas: **Clientes** (pilotos), **Frota** (karts e manutenção), **Financeiro**, **Agenda** (reservas), **Painel** (corridas);
+  - tela **Cadastros** (admin): lista, cria, altera e apaga as demais tabelas — Reservas (remarcar), Corridas realizadas, Pistas, Manutenções, Estados, Cidades, CEPs, Funcionários, Gerentes, Corridas (modelo), Pagamentos, Pilotos por corrida e Karts por corrida;
+  - o piloto edita o próprio perfil, cadastra/edita/remove dependentes e cancela ou remarca reservas.
+  - **Visualização:** tudo o que aparece na interface está nas tabelas do SQL Server (o front só fala com a API, que grava no banco), e os **Relatórios** leem views, functions e logs de triggers.
+- **5.3 – Backup e Restore (bônus):** `Banco-Kartodromo/Backup_Restore_SpeedPark.sql` (descrito abaixo).
+- **Vagas sem corrida de pedidos:** a `sp_CadReserva_SpeedPark` trava (`updlock, holdlock`) as reservas do mesmo horário e pista dentro da transação; teste com 6 pedidos simultâneos para uma pista de 2 vagas aceita só 2.
 
 ### Backup e Restore
 

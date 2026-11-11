@@ -69,6 +69,20 @@ select 'Restaurado', count(*) from KartManager_Restaurado.dbo.Pessoa
 go
 
 -- as views, procedures, functions e triggers também foram restauradas
+select 'Original' as Banco,
+       (select count(*) from KartManager.sys.views)                                as Views,
+       (select count(*) from KartManager.sys.procedures)                           as Procedures,
+       (select count(*) from KartManager.sys.objects where type in ('FN','IF','TF')) as Functions,
+       (select count(*) from KartManager.sys.triggers)                             as Triggers
+union all
+select 'Restaurado',
+       (select count(*) from KartManager_Restaurado.sys.views),
+       (select count(*) from KartManager_Restaurado.sys.procedures),
+       (select count(*) from KartManager_Restaurado.sys.objects where type in ('FN','IF','TF')),
+       (select count(*) from KartManager_Restaurado.sys.triggers)
+go
+
+-- e funcionam no banco restaurado
 select * from KartManager_Restaurado.dbo.v_Resumo_Financeiro_SpeedPark
 go
 

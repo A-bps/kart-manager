@@ -131,6 +131,7 @@ const NAV_ITEMS = [
   { id: 'frota', label: 'Frota', icon: 'directions_car' },
   { id: 'financeiro', label: 'Financeiro', icon: 'payments' },
   { id: 'relatorios', label: 'Relatórios', icon: 'bar_chart' },
+  { id: 'cadastros', label: 'Cadastros', icon: 'database' },
 ];
 
 // === sidebar ===
@@ -1928,6 +1929,228 @@ function Relatorios() {
   );
 }
 
+// === cadastros gerais: lista, cria, altera e apaga os dados das demais tabelas (CRUD completo, via API Java) ===
+// campo.ref = lista de outra tabela mostrada como caixa de seleção; soCriar = não muda depois de criado
+const CAT_PISTA = [['kids', 'Kids'], ['junior', 'Junior'], ['open', 'Open']];
+const nomePessoa = r => (r.pessoa && r.pessoa.nome) || (r.funcionario && r.funcionario.pessoa && r.funcionario.pessoa.nome) || '--';
+const REF = {
+  karts: { caminho: 'karts', valor: r => r.codigo, rotulo: r => `Kart ${r.numero ?? '(sem número)'} · ${r.estado}` },
+  ufs: { caminho: 'ufs', valor: r => r.sigla, rotulo: r => `${r.sigla} · ${r.nome}` },
+  cidades: { caminho: 'cidades', valor: r => r.codigo, rotulo: r => `${r.nome}${r.uf ? ' / ' + r.uf.sigla : ''}` },
+  pistas: { caminho: 'pistas', valor: r => r.nr, rotulo: r => r.nome },
+  pessoas: { caminho: 'pessoas', valor: r => r.codigo, rotulo: r => `${r.nome} · ${r.cpf}` },
+  funcionarios: { caminho: 'funcionarios', valor: r => r.pessoaCodigo, rotulo: r => nomePessoa(r) },
+  pilotos: { caminho: 'pilotos', valor: r => r.id, rotulo: r => r.nome },
+  corridas: { caminho: 'corridas', valor: r => r.nr, rotulo: r => `Corrida ${r.nr} · ${r.data} ${String(r.horario || '').slice(0, 5)}` },
+};
+const CADASTROS = [
+  { id: 'reservas', titulo: 'Reservas', caminho: 'reservas', chave: r => r.id, semCriar: true,
+    colunas: [['Nº', r => r.id], ['Data', r => r.data], ['Hora', r => r.hora], ['Pista', r => r.pistaId], ['Participante', r => r.nome], ['Pagamento', r => r.formaPagamento], ['Valor', r => r.valor]],
+    campos: [{ n: 'data', l: 'Data', t: 'date' }, { n: 'hora', l: 'Horário', t: 'time' }],
+    dica: 'Remarcar muda só a data e o horário (precisa estar na grade, no futuro e ter vaga). Para criar uma reserva use a Agenda.' },
+  { id: 'provas', titulo: 'Corridas realizadas', caminho: 'provas/historico', apagar: 'provas', chave: r => r.id, semCriar: true, semEditar: true,
+    colunas: [['Nº', r => r.id], ['Corrida', r => r.numero], ['Pista', r => r.pistaNome], ['Encerrada em', r => (r.encerradaEm ? new Date(r.encerradaEm).toISOString() : null)], ['Pilotos', r => (r.posicoes || []).length]],
+    dica: 'Corridas são iniciadas e encerradas no Painel; aqui é possível consultar e apagar o histórico.' },
+  { id: 'pistas', titulo: 'Pistas', caminho: 'pistas', chave: r => r.nr,
+    colunas: [['Nº', r => r.nr], ['Nome', r => r.nome], ['Código', r => r.codigo], ['Capacidade', r => r.capacidade], ['Metros', r => r.metros], ['Preço/min', r => r.precoPorMin], ['Preço/volta', r => r.precoPorVolta], ['Categoria', r => r.categoria]],
+    campos: [{ n: 'nome', l: 'Nome', t: 'text' }, { n: 'codigo', l: 'Código (ex.: pista1)', t: 'text' }, { n: 'capacidade', l: 'Capacidade', t: 'number' }, { n: 'metros', l: 'Metros', t: 'number' },
+      { n: 'precoPorMin', l: 'Preço por minuto', t: 'number', passo: '0.01' }, { n: 'precoPorVolta', l: 'Preço por volta', t: 'number', passo: '0.01' }, { n: 'categoria', l: 'Categoria', t: 'select', opcoes: CAT_PISTA }] },
+  { id: 'manutencoes', titulo: 'Manutenções', caminho: 'manutencoes', chave: r => r.codigo,
+    colunas: [['Nº', r => r.codigo], ['Kart', r => r.kart && r.kart.numero], ['Status', r => r.status], ['Valor', r => r.valor], ['Pagamento', r => r.formaPagamento]],
+    campos: [{ n: 'kartCodigo', l: 'Kart', t: 'number', ref: REF.karts }, { n: 'status', l: 'Status (ex.: aberta, concluída)', t: 'text' }, { n: 'valor', l: 'Valor (R$)', t: 'number', passo: '0.01' }, { n: 'formaPagamento', l: 'Forma de pagamento', t: 'text' }],
+    paraForm: r => ({ kartCodigo: r.kart && r.kart.codigo }),
+    dica: 'Ao registrar uma manutenção nova, o banco (procedure) coloca o kart em "manutenção".' },
+  { id: 'ufs', titulo: 'Estados (UF)', caminho: 'ufs', chave: r => r.sigla,
+    colunas: [['Sigla', r => r.sigla], ['Nome', r => r.nome]],
+    campos: [{ n: 'sigla', l: 'Sigla (2 letras)', t: 'text', soCriar: true }, { n: 'nome', l: 'Nome', t: 'text' }] },
+  { id: 'cidades', titulo: 'Cidades', caminho: 'cidades', chave: r => r.codigo,
+    colunas: [['Nº', r => r.codigo], ['Nome', r => r.nome], ['UF', r => r.uf && r.uf.sigla]],
+    campos: [{ n: 'nome', l: 'Nome', t: 'text' }, { n: 'ufSigla', l: 'Estado', t: 'text', ref: REF.ufs }],
+    paraForm: r => ({ ufSigla: r.uf && r.uf.sigla }) },
+  { id: 'ceps', titulo: 'CEPs', caminho: 'ceps', chave: r => r.numero,
+    colunas: [['CEP', r => r.numero], ['Cidade', r => r.cidade && r.cidade.nome]],
+    campos: [{ n: 'numero', l: 'CEP (8 dígitos)', t: 'text', soCriar: true }, { n: 'cidadeCodigo', l: 'Cidade', t: 'number', ref: REF.cidades }],
+    paraForm: r => ({ cidadeCodigo: r.cidade && r.cidade.codigo }) },
+  { id: 'funcionarios', titulo: 'Funcionários', caminho: 'funcionarios', chave: r => r.pessoaCodigo,
+    colunas: [['Nº', r => r.pessoaCodigo], ['Nome', r => nomePessoa(r)], ['Salário', r => r.salario]],
+    campos: [{ n: 'pessoaCodigo', l: 'Pessoa', t: 'number', ref: REF.pessoas, soCriar: true }, { n: 'salario', l: 'Salário (R$)', t: 'number', passo: '0.01' }] },
+  { id: 'gerentes', titulo: 'Gerentes', caminho: 'gerentes', chave: r => r.pessoaCodigo,
+    colunas: [['Nº', r => r.pessoaCodigo], ['Nome', r => nomePessoa(r)], ['Salário extra', r => r.salarioExtra]],
+    campos: [{ n: 'funcionarioCodigo', l: 'Funcionário', t: 'number', ref: REF.funcionarios, soCriar: true }, { n: 'salarioExtra', l: 'Salário extra (R$)', t: 'number', passo: '0.01' }],
+    paraForm: r => ({ funcionarioCodigo: r.pessoaCodigo }) },
+  { id: 'corridas', titulo: 'Corridas (modelo)', caminho: 'corridas', chave: r => r.nr,
+    colunas: [['Nº', r => r.nr], ['Data', r => r.data], ['Horário', r => r.horario], ['Pista', r => r.pista && r.pista.nome], ['Funcionário', r => nomePessoa(r)], ['Preço', r => r.preco]],
+    campos: [{ n: 'preco', l: 'Preço (R$)', t: 'number', passo: '0.01' }, { n: 'data', l: 'Data', t: 'date' }, { n: 'horario', l: 'Horário', t: 'time' },
+      { n: 'pistaNr', l: 'Pista', t: 'number', ref: REF.pistas }, { n: 'funcionarioCodigo', l: 'Funcionário', t: 'number', ref: REF.funcionarios }],
+    paraForm: r => ({ pistaNr: r.pista && r.pista.nr, funcionarioCodigo: r.funcionario && r.funcionario.pessoaCodigo }) },
+  { id: 'pagamentos', titulo: 'Pagamentos', caminho: 'pagamentos', chave: r => r.codigo,
+    colunas: [['Nº', r => r.codigo], ['Piloto', r => (r.cliente && r.cliente.pessoa && r.cliente.pessoa.nome) || (r.cliente && r.cliente.pessoaCodigo)], ['Corrida', r => r.corrida && r.corrida.nr], ['Valor', r => r.valor], ['Status', r => r.status], ['Forma', r => r.formaPagamento]],
+    campos: [{ n: 'valor', l: 'Valor (R$)', t: 'number', passo: '0.01' }, { n: 'status', l: 'Status', t: 'text' }, { n: 'formaPagamento', l: 'Forma de pagamento', t: 'text' },
+      { n: 'clienteCodigo', l: 'Piloto', t: 'number', ref: REF.pilotos }, { n: 'corridaNr', l: 'Corrida', t: 'number', ref: REF.corridas }],
+    paraForm: r => ({ clienteCodigo: r.cliente && r.cliente.pessoaCodigo, corridaNr: r.corrida && r.corrida.nr }) },
+  { id: 'clientes-corridas', titulo: 'Pilotos por corrida', caminho: 'clientes-corridas', chave: r => `${r.id.clienteCodigo}/${r.id.corridaNr}`,
+    colunas: [['Piloto', r => (r.cliente && r.cliente.pessoa && r.cliente.pessoa.nome) || r.id.clienteCodigo], ['Corrida', r => r.id.corridaNr], ['Posição', r => r.posicao], ['Melhor volta', r => r.melhorVolta], ['Tempo', r => r.tempo], ['Penalidade', r => r.penalidade]],
+    campos: [{ n: 'clienteCodigo', l: 'Piloto', t: 'number', ref: REF.pilotos, soCriar: true }, { n: 'corridaNr', l: 'Corrida', t: 'number', ref: REF.corridas, soCriar: true },
+      { n: 'posicao', l: 'Posição', t: 'number' }, { n: 'melhorVolta', l: 'Melhor volta', t: 'time', passo: '1' }, { n: 'tempo', l: 'Tempo', t: 'time', passo: '1' }, { n: 'penalidade', l: 'Penalidade', t: 'text' }],
+    paraForm: r => ({ clienteCodigo: r.id.clienteCodigo, corridaNr: r.id.corridaNr }) },
+  { id: 'corridas-karts', titulo: 'Karts por corrida', caminho: 'corridas-karts', chave: r => `${r.id.corridaNr}/${r.id.kartCodigo}`, semEditar: true,
+    colunas: [['Corrida', r => r.id.corridaNr], ['Kart', r => (r.kart && r.kart.numero) || r.id.kartCodigo]],
+    campos: [{ n: 'corridaNr', l: 'Corrida', t: 'number', ref: REF.corridas }, { n: 'kartCodigo', l: 'Kart', t: 'number', ref: REF.karts }] },
+];
+
+function Cadastros() {
+  const [aba, setAba] = useState('reservas');
+  const [linhas, setLinhas] = useState(null);
+  const [erro, setErro] = useState('');
+  const [form, setForm] = useState(null); // { chave: null (novo) ou chave do registro, valores }
+  const [refs, setRefs] = useState({});
+  const cad = CADASTROS.find(c => c.id === aba);
+  const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' };
+  const txt = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' };
+
+  const carregar = async () => {
+    setLinhas(null); setErro('');
+    try { setLinhas(await Api.crud.listar(cad.caminho)); }
+    catch (e) { setErro(e.message); setLinhas([]); }
+  };
+  useEffect(() => { setForm(null); carregar(); }, [aba]);
+
+  const abrir = async (registro) => {
+    setErro('');
+    const valores = {};
+    (cad.campos || []).forEach(c => { valores[c.n] = ''; });
+    if (registro) {
+      const extra = cad.paraForm ? cad.paraForm(registro) : {};
+      (cad.campos || []).forEach(c => { const v = c.n in extra ? extra[c.n] : registro[c.n]; valores[c.n] = v == null ? '' : (c.t === 'time' ? String(v).slice(0, c.passo ? 8 : 5) : v); });
+    }
+    setForm({ chave: registro ? cad.chave(registro) : null, valores });
+    for (const c of cad.campos || []) {
+      if (c.ref && !refs[c.ref.caminho]) {
+        try { const lista = await Api.crud.listar(c.ref.caminho); setRefs(r => ({ ...r, [c.ref.caminho]: lista })); } catch (e) { /* lista fica vazia */ }
+      }
+    }
+  };
+
+  const salvar = async () => {
+    const corpo = {};
+    cad.campos.forEach(c => {
+      const v = form.valores[c.n];
+      corpo[c.n] = v === '' || v == null ? null : (c.t === 'number' ? Number(v) : v);
+    });
+    try {
+      if (form.chave === null) await Api.crud.criar(cad.caminho, corpo);
+      else await Api.crud.atualizar(cad.caminho, form.chave, corpo);
+      setForm(null); await carregar();
+    } catch (e) { setErro(e.message + (e.campos && Object.keys(e.campos).length ? ' (' + Object.entries(e.campos).map(([k, v]) => k + ': ' + v).join('; ') + ')' : '')); }
+  };
+
+  const apagar = async (r) => {
+    if (!window.confirm('Apagar este registro?')) return;
+    try { await Api.crud.remover(cad.apagar || cad.caminho, cad.chave(r)); await carregar(); }
+    catch (e) { setErro(e.message); }
+  };
+
+  const celula = (rotulo, v) => (typeof v === 'number' && /valor|salário|preço/i.test(rotulo) ? `R$ ${v.toFixed(2).replace('.', ',')}` : celulaRelatorio(rotulo, v));
+  const editavel = !cad.semEditar && cad.campos;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="font-black italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '32px', lineHeight: '1.2' }}>Cadastros</h1>
+        <p className="mt-1 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>
+          Consulte, cadastre, altere e apague os dados do banco. Tudo o que aparece aqui também está nas tabelas do SQL Server.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {CADASTROS.map(c => (
+          <button key={c.id} onClick={() => setAba(c.id)}
+            className={`border px-4 py-2 transition-colors ${aba === c.id ? 'border-primary bg-primary-container text-white' : 'border-outline-variant/30 text-on-surface-variant hover:border-primary/50 hover:text-primary'}`}
+            style={lbl}>{c.titulo.toUpperCase()}</button>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-on-surface-variant" style={{ ...txt, maxWidth: '640px' }}>{cad.dica || ''}</p>
+        {!cad.semCriar && cad.campos && (
+          <button onClick={() => abrir(null)} className="bg-primary-container px-5 py-3 text-white transition-opacity hover:opacity-90" style={lbl}>+ NOVO REGISTRO</button>
+        )}
+      </div>
+
+      {form && (
+        <div className="border border-primary/40 bg-surface-container p-4">
+          <p className="mb-3 text-on-surface" style={lbl}>{form.chave === null ? 'NOVO REGISTRO' : 'EDITAR REGISTRO'} · {cad.titulo.toUpperCase()}</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {cad.campos.map(c => {
+              const desativado = form.chave !== null && c.soCriar;
+              const val = form.valores[c.n];
+              const mudar = e => setForm(f => ({ ...f, valores: { ...f.valores, [c.n]: e.target.value } }));
+              return (
+                <div key={c.n} className="flex flex-col gap-1">
+                  <label className="text-on-surface-variant" style={lbl}>{c.l.toUpperCase()}</label>
+                  {c.ref ? (
+                    <select value={val} onChange={mudar} disabled={desativado} className="modal-input">
+                      <option value="">Selecione...</option>
+                      {(refs[c.ref.caminho] || []).map(r => <option key={c.ref.valor(r)} value={c.ref.valor(r)}>{c.ref.rotulo(r)}</option>)}
+                    </select>
+                  ) : c.t === 'select' ? (
+                    <select value={val} onChange={mudar} className="modal-input">
+                      <option value="">Selecione...</option>
+                      {c.opcoes.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+                    </select>
+                  ) : (
+                    <input type={c.t} step={c.passo} value={val} onChange={mudar} disabled={desativado} className="modal-input" style={c.t === 'text' ? undefined : { colorScheme: 'dark' }} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-4 flex gap-3">
+            <button onClick={salvar} className="bg-primary-container px-5 py-3 text-white transition-opacity hover:opacity-90" style={lbl}>SALVAR</button>
+            <button onClick={() => setForm(null)} className="border border-outline-variant/30 px-5 py-3 text-on-surface-variant transition-colors hover:text-on-surface" style={lbl}>CANCELAR</button>
+          </div>
+        </div>
+      )}
+
+      {erro && <p className="text-error" style={txt}>{erro}</p>}
+
+      {linhas === null ? (
+        <p className="text-on-surface-variant" style={txt}>Consultando o banco...</p>
+      ) : linhas.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 border border-outline-variant/20 bg-surface-container py-14 text-on-surface-variant">
+          <span className="material-symbols-outlined text-5xl">table_chart</span>
+          <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>Nenhum registro cadastrado.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto border border-outline-variant/20 bg-surface-container">
+          <table className="w-full min-w-max">
+            <thead>
+              <tr className="border-b border-outline-variant/20 bg-surface-container-high">
+                {cad.colunas.map(([rotulo]) => <th key={rotulo} className="px-4 py-3 text-left text-on-surface-variant whitespace-nowrap" style={lbl}>{rotulo.toUpperCase()}</th>)}
+                <th className="px-4 py-3 text-right text-on-surface-variant" style={lbl}>AÇÕES</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l, i) => (
+                <tr key={i} className="border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high">
+                  {cad.colunas.map(([rotulo, fn]) => <td key={rotulo} className="px-4 py-3 text-on-surface whitespace-nowrap" style={txt}>{celula(rotulo, fn(l))}</td>)}
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    {editavel && <button onClick={() => abrir(l)} title="Editar" className="mr-2 border border-secondary/30 px-2 py-1 text-secondary hover:bg-secondary/10" style={lbl}>EDITAR</button>}
+                    <button onClick={() => apagar(l)} title="Apagar" className="border border-error/30 px-2 py-1 text-error hover:bg-error/10" style={lbl}>APAGAR</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {linhas && linhas.length > 0 && (
+        <p className="text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>{linhas.length} registro(s)</p>
+      )}
+    </div>
+  );
+}
+
 // === app ===
 function DashboardAdmin() {
   const [activeTab, setActiveTab] = useState('painel');
@@ -1949,6 +2172,7 @@ function DashboardAdmin() {
       case 'financeiro': return <Financeiro />;
       case 'classificacao': return <Classificacao />;
       case 'relatorios': return <Relatorios />;
+      case 'cadastros': return <Cadastros />;
       default: return null;
     }
   };

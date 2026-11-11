@@ -44,12 +44,26 @@ public class DependenteService {
         return DependenteView.de(repository.save(d));
     }
 
+    public DependenteView atualizar(Integer id, DependenteRequest r, Authentication auth) {
+        Dependente d = buscarDoPiloto(id, auth);
+        d.setNome(r.nome().trim());
+        d.setNascimento(r.nascimento());
+        d.setCategoria(categorias.de(r.nascimento()));
+        d.setAltura(r.altura());
+        d.setPeso(r.peso());
+        return DependenteView.de(repository.save(d));
+    }
+
     public void remover(Integer id, Authentication auth) {
+        repository.delete(buscarDoPiloto(id, auth));
+    }
+
+    private Dependente buscarDoPiloto(Integer id, Authentication auth) {
         Dependente d = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Dependente não encontrado: " + id));
         if (!d.getResponsavel().getPessoaCodigo().equals(TokenService.codigo(auth))) {
             throw new AccessDeniedException("Este dependente pertence a outro piloto.");
         }
-        repository.delete(d);
+        return d;
     }
 }

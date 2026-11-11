@@ -17,9 +17,11 @@ import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 
 import com.fatec.speedpark.dto.ReservaRequest;
+import com.fatec.speedpark.dto.ReservaUpdateRequest;
 import com.fatec.speedpark.dto.ReservaView;
 import com.fatec.speedpark.entities.Cliente;
 import com.fatec.speedpark.entities.Dependente;
@@ -135,6 +137,26 @@ public class ReservaService {
         Integer reservaId = RetornoProcedure.id(retorno);
         return ReservaView.de(repository.findById(reservaId)
                 .orElseThrow(() -> new NoSuchElementException("Reserva não encontrada: " + reservaId)), true);
+    }
+
+    // remarcar: nova data/horario precisam estar na grade, no futuro e ter vaga na mesma pista
+    @Transactional
+    public ReservaView atualizar(Integer id, ReservaUpdateRequest r, Authentication auth) {
+        Reserva reserva = repository.findById(id)
+                .orElseThrow(() -> new NoSuchElementException("Reserva não encontrada: " + id));
+        boolean dono = reserva.getCliente() != null
+                && reserva.getCliente().getPessoaCodigo().equals(TokenService.codigo(auth));
+        if (!TokenService.ehAdmin(auth) && !dono) {
+            throw new AccessDeniedException("Você só pode alterar as suas reservas.");
+        }
+        validarDataEHora(r.data(), r.hora());
+        boolean mudou = !r.data().equals(reserva.getData()) || !r.hora().equals(reserva.getHorario());
+        if (mudou && repository.countByPistaAndDataAndHorario(reserva.getPista(), r.data(), r.hora()) >= reserva.getPista().getCapacidade()) {
+            throw new ConflitoException("Horário lotado nesta pista.");
+        }
+        reserva.setData(r.data());
+        reserva.setHorario(r.hora());
+        return ReservaView.de(repository.save(reserva), true);
     }
 
     // a procedure sp_CancelarReserva_SpeedPark apaga a reserva e lanca o estorno no financeiro, na mesma transacao

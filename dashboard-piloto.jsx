@@ -81,6 +81,13 @@ function filhos_add(filho) {
     altura: num(filho.altura), peso: num(filho.peso),
   });
 }
+function filhos_atualizar(id, filho) {
+  const num = v => (v === '' || v == null ? null : Number(v));
+  return Api.editarDependente(id, {
+    nome: filho.nome.trim(), nascimento: filho.nascimento, categoria: filho.categoria,
+    altura: num(filho.altura), peso: num(filho.peso),
+  });
+}
 function filhos_remover(filhoId) { return Api.removerDependente(filhoId); }
 
 
@@ -793,6 +800,8 @@ function Perfil() {
   const [showAddFilho, setShowAddFilho] = useState(false);
   const [formFilho, setFormFilho] = useState({ nome: '', nascimento: '', categoria: '', peso: '', altura: '' });
   const [pendDelFilho, setPendDelFilho] = useState(null);
+  const [editFilho, setEditFilho] = useState(null); // id do dependente em edicao
+  const novoFilho = { nome: '', nascimento: '', categoria: '', peso: '', altura: '' };
 
   const reloadFilhos = () => setFilhos(filhos_listar());
 
@@ -821,8 +830,9 @@ function Perfil() {
   const salvarFilho = async () => {
     if (!formFilho.nome.trim() || !formFilho.nascimento || !formFilho.categoria) return;
     try {
-      await filhos_add(formFilho);
-      setFormFilho({ nome: '', nascimento: '', categoria: '', peso: '', altura: '' });
+      if (editFilho) await filhos_atualizar(editFilho, formFilho); else await filhos_add(formFilho);
+      setFormFilho(novoFilho);
+      setEditFilho(null);
       setShowAddFilho(false);
     } catch (e) { apiErro(e); }
     reloadFilhos();
@@ -930,7 +940,7 @@ function Perfil() {
             <span className="material-symbols-outlined text-secondary">child_care</span>
             Dependentes / Filhos
           </h2>
-          <button onClick={() => setShowAddFilho(v => !v)}
+          <button onClick={() => { setShowAddFilho(v => !v); setEditFilho(null); setFormFilho(novoFilho); }}
             className="flex items-center gap-2 font-label-caps text-xs border px-4 py-2 transition-colors bg-primary-container text-white hover:bg-primary">
             <span className="material-symbols-outlined text-base">{showAddFilho ? 'close' : 'person_add'}</span>
             {showAddFilho ? 'CANCELAR' : 'ADICIONAR'}
@@ -939,7 +949,7 @@ function Perfil() {
 
         {showAddFilho && (
           <div className="bg-surface-container-low border border-outline-variant/20 p-5 mb-6 flex flex-col gap-4">
-            <p className="font-bold italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '16px' }}>Novo Dependente</p>
+            <p className="font-bold italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '16px' }}>{editFilho ? 'Editar Dependente' : 'Novo Dependente'}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>NOME COMPLETO *</label>
@@ -971,7 +981,7 @@ function Perfil() {
             </div>
             <div className="flex gap-3">
               <button onClick={salvarFilho} className="font-label-caps text-xs bg-primary-container text-white px-5 py-2 hover:bg-primary transition-colors">SALVAR</button>
-              <button onClick={() => setShowAddFilho(false)} className="font-label-caps text-xs border border-outline-variant/30 text-on-surface-variant px-5 py-2 hover:bg-surface transition-colors">CANCELAR</button>
+              <button onClick={() => { setShowAddFilho(false); setEditFilho(null); setFormFilho(novoFilho); }} className="font-label-caps text-xs border border-outline-variant/30 text-on-surface-variant px-5 py-2 hover:bg-surface transition-colors">CANCELAR</button>
             </div>
           </div>
         )}
@@ -1004,9 +1014,14 @@ function Perfil() {
                       <button onClick={() => setPendDelFilho(null)} className="font-label-caps text-xs text-on-surface-variant border border-outline-variant/30 px-2 py-1 transition-colors">CANCELAR</button>
                     </>
                   ) : (
+                    <>
+                    <button onClick={() => { setEditFilho(f.id); setFormFilho({ nome: f.nome, nascimento: f.nascimento || '', categoria: f.categoria || '', peso: f.peso ?? '', altura: f.altura ?? '' }); setShowAddFilho(true); }} title="Editar" className="w-8 h-8 border border-secondary/30 text-secondary flex items-center justify-center hover:bg-secondary/10 transition-colors">
+                      <span className="material-symbols-outlined text-base">edit</span>
+                    </button>
                     <button onClick={() => setPendDelFilho(f.id)} className="w-8 h-8 border border-error/30 text-error flex items-center justify-center hover:bg-error/10 transition-colors">
                       <span className="material-symbols-outlined text-base">delete</span>
                     </button>
+                    </>
                   )}
                 </div>
               </div>

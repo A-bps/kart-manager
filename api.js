@@ -107,6 +107,7 @@ const Api = (() => {
         await carregarReservas().catch(() => {});
       }
     },
+    async remarcarReserva(id, data, hora) { await req('PUT', `/reservas/${id}`, { data, hora }); await carregarReservas(); },
     async cancelarReserva(id) { await req('DELETE', `/reservas/${id}`); await carregarReservas(); },
 
     // --- corridas (admin): iniciar, encerrar; o historico alimenta ranking e historico do piloto ---
@@ -115,10 +116,19 @@ const Api = (() => {
 
     // --- dependentes (filhos) do piloto ---
     async adicionarDependente(dados) { await req('POST', '/dependentes', dados); await carregarDependentes(); },
+    async editarDependente(id, dados) { await req('PUT', `/dependentes/${id}`, dados); await carregarDependentes(); },
     async removerDependente(id) { await req('DELETE', `/dependentes/${id}`); await carregarDependentes(); },
 
     // --- relatorios do admin (views, function e logs de triggers do banco) ---
     async relatorio(caminho) { return req('GET', `/relatorios/${caminho}`); },
+
+    // --- cadastros gerais (admin): lista, cria, altera e apaga em qualquer tabela da API ---
+    crud: {
+      listar: (caminho) => req('GET', `/${caminho}`),
+      criar: (caminho, corpo) => req('POST', `/${caminho}`, corpo),
+      atualizar: (caminho, chave, corpo) => req('PUT', `/${caminho}/${chave}`, corpo),
+      remover: (caminho, chave) => req('DELETE', `/${caminho}/${chave}`),
+    },
 
     // --- financeiro (admin) ---
     async lancar(dados) { await req('POST', '/faturamento', dados); await carregarFaturamento(); },

@@ -105,6 +105,13 @@ t "piloto reserva -> 201" 201 POST /reservas "$PIL" "$R"
 RID=$(j id)
 echo "$BODY" | grep -q '"valor":100' || { FAIL=$((FAIL+1)); echo "  FALHA valor deveria ser 100.00 (10/min x 10): $BODY"; }
 t "horario fora da grade -> 400" 400 POST /reservas "$PIL" "${R/14:00/13:00}"
+t "remarcar reserva para outro horario -> 200" 200 PUT /reservas/$RID "$PIL" "{\"data\":\"$DATA\",\"hora\":\"16:00\"}"
+echo "$BODY" | grep -q '"hora":"16:00"' || { FAIL=$((FAIL+1)); echo "  FALHA remarcacao nao mudou a hora: $BODY" | cut -c1-200; }
+t "remarcar para fora da grade -> 400" 400 PUT /reservas/$RID "$PIL" "{\"data\":\"$DATA\",\"hora\":\"13:00\"}"
+t "remarcar para o passado -> 400" 400 PUT /reservas/$RID "$PIL" '{"data":"2020-01-01","hora":"14:00"}'
+t "remarcar reserva inexistente -> 404" 404 PUT /reservas/99999999 "$PIL" "{\"data\":\"$DATA\",\"hora\":\"14:00\"}"
+t "remarcar sem login -> 401" 401 PUT /reservas/$RID "" "{\"data\":\"$DATA\",\"hora\":\"14:00\"}"
+t "remarcar de volta para 14:00 -> 200" 200 PUT /reservas/$RID "$PIL" "{\"data\":\"$DATA\",\"hora\":\"14:00\"}"
 t "data passada -> 400" 400 POST /reservas "$PIL" "${R/$DATA/2020-01-01}"
 t "quantidade invalida -> 400" 400 POST /reservas "$PIL" "${R/\"qtd\":10/\"qtd\":11}"
 t "pista inexistente -> 404" 404 POST /reservas "$PIL" "${R/pista3/pista9}"
@@ -171,6 +178,12 @@ t "piloto lista os seus dependentes -> 200" 200 GET /dependentes "$PIL"
 echo "$BODY" | grep -q "QA Filho" || { FAIL=$((FAIL+1)); echo "  FALHA dependente nao apareceu"; }
 t "outro piloto nao ve dependente alheio -> 200" 200 GET /dependentes "$OUTROTOK"
 echo "$BODY" | grep -q "QA Filho" && { FAIL=$((FAIL+1)); echo "  FALHA outro piloto enxergou o dependente"; }
+t "piloto edita o dependente (nasce 2016 -> junior) -> 200" 200 PUT /dependentes/$DID "$PIL" '{"nome":"QA Filho Editado","nascimento":"2016-04-02","altura":150,"peso":40}'
+echo "$BODY" | grep -q '"nome":"QA Filho Editado"' && echo "$BODY" | grep -q '"categoria":"junior"' && OK=$((OK+1)) && echo "  ok   edicao refez a categoria pela idade (junior)" || { FAIL=$((FAIL+1)); echo "  FALHA edicao do dependente: $BODY" | cut -c1-200; }
+t "outro piloto nao edita dependente alheio -> 403" 403 PUT /dependentes/$DID "$OUTROTOK" '{"nome":"Invasor Teste","nascimento":"2016-04-02"}'
+t "editar dependente inexistente -> 404" 404 PUT /dependentes/99999 "$PIL" '{"nome":"QA Filho","nascimento":"2016-04-02"}'
+t "editar dependente sem nome -> 400" 400 PUT /dependentes/$DID "$PIL" '{"nome":"","nascimento":"2016-04-02"}'
+t "volta o dependente a Kids (2022) -> 200" 200 PUT /dependentes/$DID "$PIL" '{"nome":"QA Filho","nascimento":"2022-04-02","altura":120,"peso":25}'
 t "outro piloto nao remove dependente alheio -> 403" 403 DELETE /dependentes/$DID "$OUTROTOK"
 t "admin nao tem dependentes -> 403" 403 POST /dependentes "$ADM" '{"nome":"X Y","nascimento":"2018-04-02","categoria":"kids"}'
 [ -n "$RDID" ] && curl -s -o /dev/null -X DELETE "$B/reservas/$RDID" -H "Authorization: Bearer $PIL"
@@ -217,6 +230,36 @@ req GET /faturamento "$ADM"
 echo "$BODY" | grep -q "Estorno da reserva $RVID" && OK=$((OK+1)) && echo "  ok   cancelamento pela procedure lancou o estorno no financeiro" || { FAIL=$((FAIL+1)); echo "  FALHA estorno da reserva $RVID nao apareceu no financeiro"; }
 t "cancelar de novo -> 404" 404 DELETE /reservas/$RVID "$PIL"
 
+echo "== Vagas: a procedure trava a pista (6 pedidos ao mesmo tempo, pista com 2 vagas)"
+t "admin cria pista QA com 2 vagas -> 201" 201 POST /pistas "$ADM" "{\"nome\":\"QA Pista $SUF\",\"codigo\":\"qa$SUF\",\"capacidade\":2,\"metros\":100,\"precoPorMin\":1,\"precoPorVolta\":1,\"categoria\":\"open\"}"
+PQ=$(j nr)
+rm -f /tmp/conc_*.txt
+for i in 1 2 3 4 5 6; do
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST "$B/reservas" -H "Authorization: Bearer $ADM" -H "Content-Type: application/json" \
+    -d "{\"data\":\"$DATA\",\"hora\":\"10:00\",\"pistaId\":\"qa$SUF\",\"nome\":\"QA Conc $i\"}" > /tmp/conc_$i.txt &
+done
+wait
+OKS=$(cat /tmp/conc_*.txt | grep -c 201); LOT=$(cat /tmp/conc_*.txt | grep -c 409)
+if [ "$OKS" = "2" ] && [ "$LOT" = "4" ]; then OK=$((OK+1)); echo "  ok   6 pedidos simultaneos: 2 aceitos e 4 recusados (sem lotacao a mais)"; else FAIL=$((FAIL+1)); echo "  FALHA simultaneos: $OKS aceitos e $LOT recusados (esperado 2 e 4)"; fi
+req GET /reservas "$ADM"
+for r in $(echo "$BODY" | grep -oE '"id":[0-9]+,"data":"[^"]*","hora":"[^"]*","pistaId":"qa'$SUF'"' | grep -oE '^"id":[0-9]+' | cut -d: -f2); do curl -s -o /dev/null -X DELETE "$B/reservas/$r" -H "Authorization: Bearer $ADM"; done
+t "apaga a pista QA -> 204" 204 DELETE /pistas/$PQ "$ADM"
+
+echo "== Cadastros gerais (CRUD completo das demais tabelas)"
+t "cria UF -> 201" 201 POST /ufs "$ADM" '{"sigla":"QZ","nome":"Estado QA"}'
+t "altera UF -> 200" 200 PUT /ufs/QZ "$ADM" '{"sigla":"QZ","nome":"Estado QA 2"}'
+t "lista UF -> 200" 200 GET /ufs/QZ "$ADM"
+echo "$BODY" | grep -q "Estado QA 2" || { FAIL=$((FAIL+1)); echo "  FALHA UF nao foi alterada"; }
+t "cria cidade -> 201" 201 POST /cidades "$ADM" '{"nome":"Cidade QA","ufSigla":"QZ"}'
+CQ=$(j codigo)
+t "altera cidade -> 200" 200 PUT /cidades/$CQ "$ADM" '{"nome":"Cidade QA 2","ufSigla":"QZ"}'
+t "cria CEP -> 201" 201 POST /ceps "$ADM" "{\"numero\":\"99999$((SUF%900+100))\",\"cidadeCodigo\":$CQ}"
+CEQ=$(echo "$BODY" | grep -oE '"numero":"[0-9]+"' | head -1 | grep -oE '[0-9]+')
+t "apaga CEP -> 204" 204 DELETE /ceps/$CEQ "$ADM"
+t "apaga cidade -> 204" 204 DELETE /cidades/$CQ "$ADM"
+t "apaga UF -> 204" 204 DELETE /ufs/QZ "$ADM"
+t "piloto nao acessa cadastros gerais -> 403" 403 GET /ufs "$PIL"
+
 echo "== CRUD antigo: validacao e 409 no lugar de 500"
 t "pessoa sem nome -> 400" 400 POST /pessoas "$ADM" '{"cpf":"77777777777"}'
 t "UF com sigla longa -> 400" 400 POST /ufs "$ADM" '{"sigla":"SPX","nome":"Longa"}'
@@ -227,7 +270,7 @@ t "metodo nao permitido -> 405" 405 PATCH /pessoas/1 "$ADM" '{}'
 echo "== Limpeza"
 # o lancamento gerado pela reserva fica no financeiro mesmo apos cancelar; apaga os do teste
 req GET /faturamento "$ADM"
-for f in $(echo "$BODY" | grep -oE '"id":[0-9]+,"data":"[^"]*","valor":[0-9.]+,"descricao":"Reserva[^"]*(QA Piloto|QA Filho)[^"]*"' | grep -o '^"id":[0-9]*' | cut -d: -f2); do curl -s -o /dev/null -X DELETE "$B/faturamento/$f" -H "Authorization: Bearer $ADM"; done
+for f in $(echo "$BODY" | grep -oE '"id":[0-9]+,"data":"[^"]*","valor":-?[0-9.]+,"descricao":"(Reserva|Estorno da reserva)[^"]*(QA Piloto|QA Filho)[^"]*"' | grep -o '^"id":[0-9]*' | cut -d: -f2); do curl -s -o /dev/null -X DELETE "$B/faturamento/$f" -H "Authorization: Bearer $ADM"; done
 t "admin apaga piloto QA -> 204" 204 DELETE /pilotos/$PID "$ADM"
 [ -n "$MID" ] && t "apaga a manutencao do teste -> 204" 204 DELETE /manutencoes/$MID "$ADM"
 [ -n "$KID" ] && t "admin apaga kart QA -> 204" 204 DELETE /karts/$KID "$ADM"
