@@ -36,7 +36,7 @@ public class RelatorioService {
 
     /** FUNCTION fc_RankingPilotos_SpeedPark(minimo de corridas, pista ou null para todas). */
     public List<Map<String, Object>> ranking(int minimoCorridas, String pistaCodigo) {
-        return limpar(jdbc.queryForList("select * from dbo.fc_RankingPilotos_SpeedPark(?, ?) order by Posicao_Ranking",
+        return limpar(jdbc.queryForList("select * from dbo.fc_RankingPilotos_SpeedPark(?, ?) order by Pontos desc, Vitorias desc, Piloto",
                 minimoCorridas, new SqlParameterValue(Types.VARCHAR, pistaCodigo == null || pistaCodigo.isBlank() ? null : pistaCodigo)));
     }
 

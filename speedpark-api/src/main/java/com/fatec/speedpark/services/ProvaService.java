@@ -4,8 +4,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import org.springframework.dao.DataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,7 +14,6 @@ import com.fatec.speedpark.entities.Pista;
 import com.fatec.speedpark.entities.Prova;
 import com.fatec.speedpark.entities.Resultado;
 import com.fatec.speedpark.exceptions.ConflitoException;
-import com.fatec.speedpark.exceptions.ErrosBanco;
 import com.fatec.speedpark.repositories.PistaRepository;
 import com.fatec.speedpark.repositories.ProvaRepository;
 
@@ -28,7 +25,6 @@ public class ProvaService {
 
     private final ProvaRepository repository;
     private final PistaRepository pistaRepository;
-    private final JdbcTemplate jdbc;
 
     @Transactional(readOnly = true)
     public List<ProvaView> listarAtivas() {
@@ -58,50 +54,17 @@ public class ProvaService {
         return ProvaView.de(repository.save(prova));
     }
 
-    // A transacao de encerrar (conferir status, trocar a lista de largada pelo resultado, fechar a corrida)
-    // e feita pela stored procedure sp_EncerrarProva_SpeedPark; o resultado vai como JSON, na ordem de chegada.
     @Transactional
     public ProvaView encerrar(Integer id, List<PosicaoRequest> resultado) {
-        try {
-            jdbc.queryForObject("exec dbo.sp_EncerrarProva_SpeedPark ?, ?", Integer.class, id, paraJson(resultado));
-        } catch (DataAccessException e) {
-            throw ErrosBanco.traduzir(e);
+        Prova prova = buscar(id);
+        if (!Prova.ATIVA.equals(prova.getStatus())) {
+            throw new ConflitoException("Esta corrida já foi encerrada.");
         }
-        return ProvaView.de(buscar(id));
-    }
-
-    private static String paraJson(List<PosicaoRequest> posicoes) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < posicoes.size(); i++) {
-            PosicaoRequest p = posicoes.get(i);
-            if (i > 0) {
-                sb.append(',');
-            }
-            sb.append("{\"kart\":").append(texto(p.kart()))
-              .append(",\"nome\":").append(texto(p.nome() == null ? null : p.nome().trim()))
-              .append(",\"melhorVolta\":").append(texto(p.melhorVolta()))
-              .append(",\"penalidades\":").append(texto(p.penalidades())).append('}');
-        }
-        return sb.append(']').toString();
-    }
-
-    // texto JSON com aspas e escapes (null vira null)
-    private static String texto(String v) {
-        if (v == null) {
-            return "null";
-        }
-        StringBuilder sb = new StringBuilder("\"");
-        for (char c : v.toCharArray()) {
-            switch (c) {
-                case '"' -> sb.append("\\\"");
-                case '\\' -> sb.append("\\\\");
-                case '\n' -> sb.append("\\n");
-                case '\r' -> sb.append("\\r");
-                case '\t' -> sb.append("\\t");
-                default -> sb.append(c < 0x20 ? String.format("\\u%04x", (int) c) : String.valueOf(c));
-            }
-        }
-        return sb.append('"').toString();
+        prova.getResultados().clear();
+        preencher(prova, resultado);
+        prova.setStatus(Prova.ENCERRADA);
+        prova.setEncerradaEm(LocalDateTime.now());
+        return ProvaView.de(repository.save(prova));
     }
 
     @Transactional

@@ -228,18 +228,18 @@ Os recursos abaixo ficam no bloco **"ADMINISTRAÇÃO DE BANCO DE DADOS"** do `Ba
 
 | Recurso | Nome | Para que serve | Quem chama no Java |
 |---|---|---|---|
-| **Procedure** | `sp_CriarReserva_SpeedPark` | Transação completa da reserva: valida pista, categoria pela idade e vagas, calcula o valor e grava `Reserva` + `Faturamento` (rollback se algo falhar) | `POST /api/reservas` |
-| **Procedure** | `sp_EncerrarProva_SpeedPark` | Transação que encerra a corrida: confere o status, troca a largada pelo resultado (recebido em JSON) e fecha a prova | `POST /api/provas/{id}/encerrar` |
+| **Procedure** | `sp_CriarReserva_SpeedPark` | Transação completa da reserva (`begin try / begin tran / commit / rollback`): valida pista, categoria pela idade e vagas, calcula o valor e grava `Reserva` + `Faturamento`. Em caso de erro desfaz tudo e devolve `NumeroErro` e `MensagemErro` | `POST /api/reservas` |
 | **View** | `v_Relatorio_Reservas_SpeedPark` | Consulta complexa: reserva + pista + piloto + valor + situação + ocupação do horário | `GET /api/relatorios/reservas` |
 | **View** | `v_Resumo_Financeiro_SpeedPark` | Total pago e pendente por dia e forma de pagamento, com ticket médio | `GET /api/relatorios/financeiro` |
 | **Function (tabela)** | `fc_RankingPilotos_SpeedPark(minCorridas, pista)` | Ranking com pontuação estilo F1, vitórias e melhor volta | `GET /api/relatorios/ranking` |
-| **Function (escalar)** | `fn_CategoriaPorIdade_SpeedPark` | Regra kids / junior / open pela idade, usada pela procedure | dentro da procedure |
+| **Function (escalar)** | `fc_CategoriaPorIdade_SpeedPark` | Regra kids / junior / open pela idade, usada pela procedure | dentro da procedure |
 | **Trigger** | `tg_HistNovaReserva` (em `Reserva`) | Grava em `LOG_HistoricoNovaReserva` toda reserva criada | disparada pela reserva do Java |
 | **Trigger** | `tg_AuditoriaFaturamento` (em `Faturamento`) | Guarda o antes/depois de status e valor em `LOG_AuditoriaFaturamento` | disparada ao marcar pago/pendente no Java |
 
 - Tudo aparece na tela do admin em **Relatórios** (consultas das views e da function, e o histórico gravado pelas triggers).
-- O bloco usa `create or alter` e `if object_id(...) is null`, então pode rodar várias vezes. A própria API executa esse bloco ao subir (`BancoRecursosInicializador`), então um banco criado só pelo Hibernate também recebe os recursos.
-- Os erros das procedures (`THROW 50001...`) viram HTTP 409/400/403/404 no Java (`ErrosBanco`).
+- O script segue o modelo do relatório: `create` simples, cabeçalho com **Objetivo** e o teste logo abaixo de cada objeto ("Testando a view", "testando a procedure", "TESTANDO A FUNCTION", trigger em 4 passos).
+- Se o banco foi criado só pelo Hibernate (sem o script), a própria API cria os objetos que faltam ao subir (`BancoRecursosInicializador`): ela lê este mesmo script e executa apenas os `create` de objetos que ainda não existem, ignorando os testes.
+- Os erros da procedure (`NumeroErro` 50001...) viram HTTP 409/400/403/404 no Java (`ErrosBanco`).
 
 ### Backup e Restore
 

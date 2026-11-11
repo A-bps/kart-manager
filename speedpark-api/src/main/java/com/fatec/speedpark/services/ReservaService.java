@@ -5,10 +5,10 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.SqlParameterValue;
 import org.springframework.security.access.AccessDeniedException;
@@ -47,7 +47,7 @@ public class ReservaService {
                 .toList();
     }
 
-    @Transactional
+    // Sem @Transactional de proposito: a transacao da reserva e da procedure (begin tran / commit / rollback).
     public ReservaView criar(ReservaRequest r, Authentication auth) {
         boolean admin = TokenService.ehAdmin(auth);
         boolean comCobranca = r.formato() != null || r.qtd() != null;
@@ -62,22 +62,23 @@ public class ReservaService {
         }
         validarDataEHora(r.data(), r.hora());
 
-        // A transacao da reserva (pista, categoria pela idade, vagas, valor, gravar Reserva + Faturamento)
-        // e feita pela stored procedure sp_CriarReserva_SpeedPark. O piloto e identificado pelo token;
+        // A reserva (pista, categoria pela idade, vagas, valor, gravar Reserva + Faturamento) e feita pela
+        // stored procedure sp_CriarReserva_SpeedPark. O piloto e identificado pelo token;
         // nome e categoria do participante vem do cadastro, nunca do pedido.
         Integer clienteCodigo = admin ? null : TokenService.codigo(auth);
-        Integer reservaId;
-        try {
-            reservaId = jdbc.queryForObject("exec dbo.sp_CriarReserva_SpeedPark ?, ?, ?, ?, ?, ?, ?, ?, ?", Integer.class,
-                    r.pistaId(), r.data(), r.hora(), r.nome().trim(),
-                    new SqlParameterValue(Types.INTEGER, clienteCodigo),
-                    new SqlParameterValue(Types.INTEGER, r.dependenteId()),
-                    new SqlParameterValue(Types.VARCHAR, r.formato()),
-                    new SqlParameterValue(Types.INTEGER, r.qtd()),
-                    new SqlParameterValue(Types.VARCHAR, r.formaPagamento()));
-        } catch (DataAccessException e) {
-            throw ErrosBanco.traduzir(e);
+        List<Map<String, Object>> retorno = jdbc.queryForList("exec dbo.sp_CriarReserva_SpeedPark ?, ?, ?, ?, ?, ?, ?, ?, ?",
+                r.pistaId(), r.data(), r.hora(), r.nome().trim(),
+                new SqlParameterValue(Types.INTEGER, clienteCodigo),
+                new SqlParameterValue(Types.INTEGER, r.dependenteId()),
+                new SqlParameterValue(Types.VARCHAR, r.formato()),
+                new SqlParameterValue(Types.INTEGER, r.qtd()),
+                new SqlParameterValue(Types.VARCHAR, r.formaPagamento()));
+        // a procedure devolve a coluna id (sucesso) ou NumeroErro/MensagemErro (falha, ja com rollback feito)
+        Map<String, Object> linha = retorno.get(0);
+        if (linha.containsKey("NumeroErro")) {
+            throw ErrosBanco.traduzir(((Number) linha.get("NumeroErro")).intValue(), String.valueOf(linha.get("MensagemErro")));
         }
+        Integer reservaId = ((Number) linha.get("id")).intValue();
         return ReservaView.de(repository.findById(reservaId)
                 .orElseThrow(() -> new NoSuchElementException("Reserva não encontrada: " + reservaId)), true);
     }
