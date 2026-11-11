@@ -47,7 +47,7 @@ Projeto-Kartodromo/
         ├── security/                     # Login JWT, BCrypt e CORS
         ├── config/                       # Dados iniciais (pistas e conta de admin)
         └── exceptions/                   # Tratamento global de erros
-    └── tests/smoke.sh                    # Teste automatizado da API (123 verificações)
+    └── tests/smoke.sh                    # Teste automatizado da API (117 verificações)
 ```
 
 ---
@@ -207,7 +207,7 @@ print(requests.get("http://localhost:8080/api/ufs", headers={"Authorization": f"
 
 ### Testes
 
-Com a API no ar, `ADMIN_SENHA='sua_senha' bash speedpark-api/tests/smoke.sh` roda 123 verificações (login, senha esquecida, permissões, validação, reservas, corridas, dependentes, financeiro, relatórios, triggers, erros 409) e apaga os dados que criou.
+Com a API no ar, `ADMIN_SENHA='sua_senha' bash speedpark-api/tests/smoke.sh` roda 117 verificações (login, senha esquecida, permissões, validação, reservas, corridas, dependentes, financeiro, relatórios, trigger, erros 409) e apaga os dados que criou.
 
 Há também testes unitários do bloqueio de tentativas (`cd speedpark-api && ./mvnw test`), que usam um relógio simulado para provar o desbloqueio sem esperar 15 minutos.
 
