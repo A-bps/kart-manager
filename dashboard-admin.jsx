@@ -835,6 +835,7 @@ function Agenda() {
   const [dataAtiva, setDataAtiva] = useState(hoje);
   const [slotAberto, setSlotAberto] = useState(null);
   const [formNome, setFormNome] = useState('');
+  const [formNasc, setFormNasc] = useState('');
   const [slotParaIniciar, setSlotParaIniciar] = useState(null);
   const [, forceUpdate] = useState(0);
   const pilotosCadastrados = pilotos_listar();
@@ -851,16 +852,24 @@ function Agenda() {
 
   const toggleSlot = (hora, pistaId) => {
     setSlotAberto(s => s === slotKey(hora, pistaId) ? null : slotKey(hora, pistaId));
-    setFormNome('');
+    setFormNome(''); setFormNasc('');
+  };
+
+  // piloto ja cadastrado: preenche o nascimento sozinho
+  const mudarNome = (nome) => {
+    setFormNome(nome);
+    const p = pilotosCadastrados.find(x => x.nome.toLowerCase() === nome.trim().toLowerCase());
+    if (p && p.nascimento) setFormNasc(p.nascimento);
   };
 
   const addPiloto = async (hora, pistaId) => {
     if (!formNome.trim()) return;
+    if (!formNasc) { alert('Informe a data de nascimento: cada pista aceita só a categoria da idade do piloto.'); return; }
     const pista = PISTAS.find(p => p.id === pistaId);
     if (reservas_do_slot(dataAtiva, hora, pistaId).length >= pista.capacidade) return;
     try {
-      await reservas_add({ data: dataAtiva, hora, pistaId, nome: formNome.trim() });
-      setFormNome('');
+      await reservas_add({ data: dataAtiva, hora, pistaId, nome: formNome.trim(), nascimento: formNasc });
+      setFormNome(''); setFormNasc('');
     } catch (e) { apiErro(e); }
     reload();
   };
@@ -1022,10 +1031,12 @@ function Agenda() {
                               {pilotosCadastrados.map(p => <option key={p.id} value={p.nome} />)}
                             </datalist>
                             <input type="text" value={formNome}
-                              onChange={e => setFormNome(e.target.value)}
+                              onChange={e => mudarNome(e.target.value)}
                               onKeyDown={e => e.key === 'Enter' && addPiloto(hora, pista.id)}
                               placeholder="Adicionar piloto…" list="pilotos-agenda" className="modal-input flex-1"
                               autoFocus />
+                            <input type="date" value={formNasc} max={dataLocal()} title="Data de nascimento"
+                              onChange={e => setFormNasc(e.target.value)} className="modal-input" style={{ colorScheme: 'dark', width: '150px' }} />
                             <button onClick={() => addPiloto(hora, pista.id)}
                               className="flex items-center gap-1 bg-primary-container px-3 py-2 text-white transition-opacity hover:opacity-90 flex-shrink-0"
                               style={lbl}>

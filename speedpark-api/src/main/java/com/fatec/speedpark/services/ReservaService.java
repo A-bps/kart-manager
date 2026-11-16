@@ -101,14 +101,16 @@ public class ReservaService {
                 participante = cliente.getPessoa().getNome();
                 categoria = categorias.de(cliente.getDataNascimento());
             }
-            // cada pista aceita somente a sua categoria (crianca na Open, adulto na Kids...)
-            if (!categoria.equals(pista.getCategoria())) {
-                throw new IllegalArgumentException("Categoria " + categoria.toUpperCase() + " não pode correr na "
-                        + pista.getNome() + " (pista " + pista.getCategoria().toUpperCase() + ").");
+            validarCategoria(categoria, pista);
+        } else {
+            // balcao: o admin informa a data de nascimento de quem vai correr
+            if (r.nascimento() == null) {
+                throw new IllegalArgumentException("Informe a data de nascimento do participante.");
             }
+            validarCategoria(categorias.de(r.nascimento()), pista);
         }
 
-        // ponytail: vagas conferidas aqui, sem trava no banco; duas reservas no mesmo instante podem passar da capacidade
+        // conferencia rapida para dar a mensagem; a trava de verdade (pedidos simultaneos) e da procedure
         if (repository.countByPistaAndDataAndHorario(pista, r.data(), r.hora()) >= pista.getCapacidade()) {
             throw new ConflitoException("Horário lotado nesta pista.");
         }
@@ -169,6 +171,14 @@ public class ReservaService {
             throw new AccessDeniedException("Você só pode cancelar as suas reservas.");
         }
         RetornoProcedure.id(jdbc.queryForList("exec dbo.sp_CancelarReserva_SpeedPark ?", id));
+    }
+
+    // cada pista aceita somente a sua categoria (crianca na Open, adulto na Kids...)
+    private void validarCategoria(String categoria, Pista pista) {
+        if (!categoria.equals(pista.getCategoria())) {
+            throw new IllegalArgumentException("Categoria " + categoria.toUpperCase() + " não pode correr na "
+                    + pista.getNome() + " (pista " + pista.getCategoria().toUpperCase() + ").");
+        }
     }
 
     private void validarDataEHora(LocalDate data, LocalTime hora) {

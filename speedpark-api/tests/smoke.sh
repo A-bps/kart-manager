@@ -120,8 +120,15 @@ t "adulto (Open) nao corre na pista Kids -> 400" 400 POST /reservas "$PIL" "${R/
 t "adulto (Open) nao corre na pista Junior -> 400" 400 POST /reservas "$PIL" "${R/pista3/pista2}"
 t "sem token -> 401" 401 POST /reservas "" "$R"
 t "piloto lista reservas -> 200" 200 GET /reservas "$PIL"
-t "admin lanca reserva so com nome -> 201" 201 POST /reservas "$ADM" "{\"data\":\"$DATA\",\"hora\":\"16:00\",\"pistaId\":\"pista2\",\"nome\":\"Cliente Balcao\"}"
+t "admin lanca reserva de balcao (nome e nascimento) -> 201" 201 POST /reservas "$ADM" "{\"data\":\"$DATA\",\"hora\":\"16:00\",\"pistaId\":\"pista2\",\"nome\":\"Cliente Balcao\",\"nascimento\":\"2016-01-01\"}"
 RID2=$(j id)
+BAL="{\"data\":\"$DATA\",\"hora\":\"18:00\",\"pistaId\":\"pista2\",\"nome\":\"Cliente Balcao\""
+t "balcao sem data de nascimento -> 400" 400 POST /reservas "$ADM" "$BAL}"
+t "balcao: adulto nao corre na pista Junior -> 400" 400 POST /reservas "$ADM" "$BAL,\"nascimento\":\"1990-01-01\"}"
+t "balcao: crianca Junior nao corre na pista Kids -> 400" 400 POST /reservas "$ADM" "${BAL/pista2/pista1},\"nascimento\":\"2016-01-01\"}"
+t "balcao: adulto na pista Open -> 201" 201 POST /reservas "$ADM" "${BAL/pista2/pista3},\"nascimento\":\"1990-01-01\"}"
+BALID=$(j id)
+t "cancela a reserva de balcao Open -> 204" 204 DELETE /reservas/$BALID "$ADM"
 t "reserva gerou lancamento financeiro -> 200" 200 GET /faturamento "$ADM"
 echo "$BODY" | grep -q '"valor":100' || { FAIL=$((FAIL+1)); echo "  FALHA lancamento da reserva nao apareceu no faturamento"; }
 t "outro piloto nao cancela reserva alheia -> 403" 403 DELETE /reservas/$RID "$(curl -s -X POST $B/auth/registro -H 'Content-Type: application/json' -d "{\"nome\":\"QA Dois $SUF\",\"cpf\":\"2222222222${SUF: -1}\",\"email\":\"qb$SUF@teste.com\",\"telefone\":\"1\",\"nascimento\":\"2001-01-01\",\"senha\":\"segredo123\"}" >/dev/null; curl -s -X POST $B/auth/login -H 'Content-Type: application/json' -d "{\"email\":\"qb$SUF@teste.com\",\"senha\":\"segredo123\"}" | grep -o '"token":"[^"]*' | cut -d'"' -f4)"
@@ -236,7 +243,7 @@ PQ=$(j nr)
 rm -f /tmp/conc_*.txt
 for i in 1 2 3 4 5 6; do
   curl -s -o /dev/null -w "%{http_code}\n" -X POST "$B/reservas" -H "Authorization: Bearer $ADM" -H "Content-Type: application/json" \
-    -d "{\"data\":\"$DATA\",\"hora\":\"10:00\",\"pistaId\":\"qa$SUF\",\"nome\":\"QA Conc $i\"}" > /tmp/conc_$i.txt &
+    -d "{\"data\":\"$DATA\",\"hora\":\"10:00\",\"pistaId\":\"qa$SUF\",\"nome\":\"QA Conc $i\",\"nascimento\":\"1990-01-01\"}" > /tmp/conc_$i.txt &
 done
 wait
 OKS=$(cat /tmp/conc_*.txt | grep -c 201); LOT=$(cat /tmp/conc_*.txt | grep -c 409)

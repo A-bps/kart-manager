@@ -224,7 +224,7 @@ Cobre: clientes, funcionários e gerentes, pistas, karts e manutenções, corrid
 
 ### Administração de banco de dados (Etapa 3 do Projeto de Extensão)
 
-Requisitos da Etapa 3 e onde cada um está atendido. Os recursos ficam no bloco **"ADMINISTRAÇÃO DE BANCO DE DADOS"** do `Banco_de_dados-Kartodromo.sql` (cabeçalho com **Objetivo** e o teste logo abaixo de cada objeto) e **todos são usados pelo sistema Java**:
+Requisitos da Etapa 3 e onde cada um está atendido. Os recursos ficam no bloco **"ADMINISTRAÇÃO DE BANCO DE DADOS"** do `Banco_de_dados-Kartodromo.sql` (cada objeto tem o seu teste logo abaixo) e **todos são usados pelo sistema Java**:
 
 | Requisito | Recurso | Para que serve | Quem chama no Java |
 |---|---|---|---|
