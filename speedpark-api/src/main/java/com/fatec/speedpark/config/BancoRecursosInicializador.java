@@ -21,8 +21,8 @@ import lombok.RequiredArgsConstructor;
  * "ADMINISTRACAO DE BANCO DE DADOS" do script oficial (Banco_de_dados-Kartodromo.sql).
  *
  * Serve para o banco que foi criado so pelo Hibernate (sem rodar o script): ao subir, a API cria o que falta.
- * Le o mesmo script do projeto (fonte unica) e, depois da linha "INICIANDO ABAIXO A PARTE DE ADMINISTRACAO DE
- * BANCO DE DADOS", executa apenas os lotes que comecam com "create" e cujo objeto ainda nao existe. Os testes
+ * Le o mesmo script do projeto (fonte unica) e, a partir da primeira view (comeco da parte de administracao
+ * de banco de dados), executa apenas os lotes que comecam com "create" e cujo objeto ainda nao existe. Os testes
  * (select, exec, insert, update) ficam de fora. Se o banco ja foi criado pelo script, nao faz nada.
  */
 @Component
@@ -31,7 +31,8 @@ import lombok.RequiredArgsConstructor;
 public class BancoRecursosInicializador implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(BancoRecursosInicializador.class);
-    private static final String INICIO = "INICIANDO ABAIXO A PARTE DE ADMINISTRAÇÃO DE BANCO DE DADOS";
+    // a parte de administracao do banco comeca na primeira view; nao depende de nenhum texto de comentario
+    private static final Pattern PRIMEIRA_VIEW = Pattern.compile("(?im)^\\s*create\\s+view\\b");
     private static final Pattern LINHA_GO = Pattern.compile("(?im)^\\s*go\\s*$");
     private static final Pattern CRIAR = Pattern.compile(
             "(?is)^\\s*create\\s+(view|procedure|proc|function|trigger|table)\\s+(?:dbo\\.)?\\[?(\\w+)\\]?");
@@ -42,13 +43,11 @@ public class BancoRecursosInicializador implements ApplicationRunner {
     public void run(ApplicationArguments args) throws IOException {
         String script = new String(new ClassPathResource("Banco_de_dados-Kartodromo.sql").getInputStream().readAllBytes(),
                 StandardCharsets.UTF_8);
-        int marcador = script.indexOf(INICIO);
-        if (marcador < 0) {
-            throw new IllegalStateException("Script do banco sem a parte de administração de banco de dados.");
+        Matcher primeira = PRIMEIRA_VIEW.matcher(script);
+        if (!primeira.find()) {
+            throw new IllegalStateException("Script do banco sem a parte de administração de banco de dados (nenhuma view encontrada).");
         }
-
-        // comeca no inicio da linha do marcador (para o comentario "--" continuar valendo)
-        int ini = script.lastIndexOf('\n', marcador) + 1;
+        int ini = primeira.start();
         int criados = 0;
         for (String lote : LINHA_GO.split(script.substring(ini))) {
             // tira os comentarios para descobrir o que o lote faz
