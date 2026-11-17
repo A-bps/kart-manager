@@ -931,6 +931,9 @@ function Pistas({ onReservar }) {
                         <span className="font-headline-sm text-headline-sm text-on-surface italic">{p.nome}</span>
                         <span className="font-label-caps text-label-caps text-primary border border-primary/40 px-2 py-0.5">{cat.titulo}</span>
                       </div>
+                      <div className="bg-surface-container-high py-3 text-primary-container">
+                        <TracadoPista codigo={p.id} className="mx-auto h-40 w-full" />
+                      </div>
                       <div className="grid grid-cols-3 gap-3 text-center">
                         <div className="bg-surface-container-high py-3">
                           <div className="font-label-data text-label-data text-on-surface">{p.metros} m</div>

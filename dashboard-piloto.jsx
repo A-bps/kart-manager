@@ -415,6 +415,7 @@ function Agendar({ onConfirmado }) {
                           <span className={`font-label-caps text-sm font-bold ${sel ? 'text-primary' : 'text-on-surface'}`}>{p.nome}</span>
                           {sel && <span className="material-symbols-outlined text-primary text-base">check_circle</span>}
                         </div>
+                        <div className="text-primary-container"><TracadoPista codigo={p.id} className="mx-auto h-24 w-full" /></div>
                         <span className="font-label-caps text-on-surface-variant text-xs">
                           {p.metros} m · até {p.capacidade} pilotos · {p.categoria.toUpperCase()}
                         </span>
