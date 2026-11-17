@@ -30,11 +30,8 @@ async function pilotos_atualizar(id, dados) {
 }
 
 // agenda fixa
-const PISTAS = [
-  { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550, precoPorMin: 6, precoPorVolta: 4, categoria: 'kids' },
-  { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800, precoPorMin: 8, precoPorVolta: 6, categoria: 'junior' },
-  { id: 'pista3', nome: 'Pista 3', capacidade: 30, metros: 1200, precoPorMin: 10, precoPorVolta: 8, categoria: 'open' },
-];
+// pistas vindas do banco (GET /api/pistas); o array e preenchido na carga inicial (Api.carregar)
+const PISTAS = Api.cache.pistas;
 const HORARIOS_SEMANA = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
 const HORARIOS_FDS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
 const QTD_TEMPO = [10, 15, 20, 30];
@@ -278,8 +275,11 @@ function Agendar({ onConfirmado }) {
   // categoria do participante (pela data de nascimento) define em qual pista ele pode correr
   const filhoSel = pilotoNome === usuario.nome ? null : filhos.find(f => f.nome === pilotoNome);
   const catPart = calcCategoria(filhoSel ? filhoSel.nascimento : usuario.nascimento);
-  const pistaDaCategoria = PISTAS.find(p => p.categoria === catPart);
-  const escolherParticipante = (nome) => { setPilotoNome(nome); setSlotSel(null); setQtd(null); };
+  // cada categoria tem mais de uma pista: o cliente escolhe em qual quer correr
+  const pistasDaCategoria = PISTAS.filter(p => p.categoria === catPart);
+  const [pistaEscolhida, setPistaEscolhida] = useState('');
+  const pistaAtual = pistasDaCategoria.find(p => p.id === pistaEscolhida) || (pistasDaCategoria.length === 1 ? pistasDaCategoria[0] : null);
+  const escolherParticipante = (nome) => { setPilotoNome(nome); setPistaEscolhida(''); setSlotSel(null); setQtd(null); };
   const horarios = data ? getHorariosDia(data) : [];
   const qtdOpts = formato === 'tempo' ? QTD_TEMPO : QTD_VOLTAS;
   const preco = slotSel ? calcPreco(slotSel.pista, formato, qtd) : 0;
@@ -368,7 +368,7 @@ function Agendar({ onConfirmado }) {
               </div>
               <p className="font-label-caps text-on-surface-variant text-xs mt-4">
                 Categoria: <span className="text-primary">{catPart.toUpperCase()}</span>
-                {pistaDaCategoria && ` — corre na ${pistaDaCategoria.nome}`} (definida pela idade)
+                {pistasDaCategoria.length > 0 && ` — corre ${pistasDaCategoria.length > 1 ? 'nas pistas' : 'na pista'} ${pistasDaCategoria.map(p => p.nome).join(' ou ')}`} (definida pela idade)
               </p>
             </section>
 
@@ -401,49 +401,68 @@ function Agendar({ onConfirmado }) {
                     <span className="text-yellow-600">Frota com apenas {karts_livres()} kart{karts_livres() === 1 ? '' : 's'} disponíve{karts_livres() === 1 ? 'l' : 'is'} no momento</span>
                   </div>
                 )}
-                <div className="flex flex-col gap-5">
-                  {horarios.map(hora => (
-                    <div key={hora}>
-                      <p className="font-label-caps text-on-surface-variant text-xs mb-2"
-                        style={{ fontFamily: 'JetBrains Mono,monospace' }}>{hora}</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {PISTAS.map(pista => {
-                          const rs = reservas_do_slot(data, hora, pista.id);
-                          const cheio = rs.length >= pista.capacidade;
-                          const categoriaErrada = pista.categoria !== catPart;
-                          const passado = data === HOJE && hora <= new Date().toTimeString().slice(0, 5);
-                          const sel = slotSel?.hora === hora && slotSel?.pistaId === pista.id;
-                          const pct = Math.round(rs.length / pista.capacidade * 100);
-                          return (
-                            <button key={pista.id} disabled={cheio || passado || categoriaErrada}
-                              onClick={() => setSlotSel(sel ? null : { hora, pistaId: pista.id, pista })}
-                              className={`p-4 border text-left transition-all flex flex-col gap-2 ${passado || cheio || categoriaErrada ? 'border-outline-variant/10 opacity-40 cursor-not-allowed bg-surface-dim'
-                                : sel ? 'border-primary bg-primary/10'
-                                  : 'border-outline-variant/30 bg-surface-container-high hover:border-primary/50'
-                                }`}>
-                              <div className="flex items-center justify-between">
-                                <span className={`font-label-caps text-xs font-bold ${sel ? 'text-primary' : 'text-on-surface'}`}>
-                                  {pista.nome}
-                                </span>
-                                {sel && <span className="material-symbols-outlined text-primary text-base">check_circle</span>}
-                              </div>
-                              <span className="font-label-caps text-on-surface-variant text-xs">
-                                {pista.metros}m · {pista.categoria.toUpperCase()}
-                              </span>
-                              <div className="w-full bg-surface-container h-1">
-                                <div className={`h-full ${cheio ? 'bg-error' : pct > 70 ? 'bg-yellow-400' : 'bg-green-400'}`}
-                                  style={{ width: `${pct}%` }} />
-                              </div>
-                              <span className={`font-label-caps text-xs ${passado ? 'text-on-surface-variant' : cheio ? 'text-error' : 'text-on-surface-variant'}`}>
-                                {categoriaErrada ? `SÓ CATEGORIA ${pista.categoria.toUpperCase()}` : passado ? 'HORÁRIO PASSADO' : cheio ? 'LOTADA' : `${pista.capacidade - rs.length} vagas`}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+
+                <p className="font-label-caps text-on-surface-variant text-xs mb-3" style={{ fontFamily: 'JetBrains Mono,monospace' }}>
+                  1. ESCOLHA A PISTA — CATEGORIA {catPart.toUpperCase()}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+                  {pistasDaCategoria.map(p => {
+                    const sel = pistaAtual?.id === p.id;
+                    return (
+                      <button key={p.id} onClick={() => { setPistaEscolhida(p.id); setSlotSel(null); setQtd(null); }}
+                        className={`p-4 border text-left transition-all flex flex-col gap-2 ${sel ? 'border-primary bg-primary/10' : 'border-outline-variant/30 bg-surface-container-high hover:border-primary/50'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className={`font-label-caps text-sm font-bold ${sel ? 'text-primary' : 'text-on-surface'}`}>{p.nome}</span>
+                          {sel && <span className="material-symbols-outlined text-primary text-base">check_circle</span>}
+                        </div>
+                        <span className="font-label-caps text-on-surface-variant text-xs">
+                          {p.metros} m · até {p.capacidade} pilotos · {p.categoria.toUpperCase()}
+                        </span>
+                        <span className="font-label-caps text-on-surface-variant text-xs">
+                          {((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`)(p.precoPorMin)}/min · {((v) => `R$ ${Number(v).toFixed(2).replace('.', ',')}`)(p.precoPorVolta)}/volta
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {pistasDaCategoria.length === 0 && (
+                    <p className="text-on-surface-variant text-sm">Nenhuma pista cadastrada para esta categoria.</p>
+                  )}
                 </div>
+
+                {pistaAtual && (
+                  <>
+                    <p className="font-label-caps text-on-surface-variant text-xs mb-3" style={{ fontFamily: 'JetBrains Mono,monospace' }}>
+                      2. ESCOLHA O HORÁRIO — {pistaAtual.nome.toUpperCase()}
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {horarios.map(hora => {
+                        const rs = reservas_do_slot(data, hora, pistaAtual.id);
+                        const cheio = rs.length >= pistaAtual.capacidade;
+                        const passado = data === HOJE && hora <= new Date().toTimeString().slice(0, 5);
+                        const sel = slotSel?.hora === hora && slotSel?.pistaId === pistaAtual.id;
+                        const pct = Math.round(rs.length / pistaAtual.capacidade * 100);
+                        return (
+                          <button key={hora} disabled={cheio || passado}
+                            onClick={() => setSlotSel(sel ? null : { hora, pistaId: pistaAtual.id, pista: pistaAtual })}
+                            className={`p-4 border text-left transition-all flex flex-col gap-2 ${passado || cheio ? 'border-outline-variant/10 opacity-40 cursor-not-allowed bg-surface-container'
+                              : sel ? 'border-primary bg-primary/10'
+                                : 'border-outline-variant/30 bg-surface-container-high hover:border-primary/50'}`}>
+                            <div className="flex items-center justify-between">
+                              <span className={`font-label-caps text-sm font-bold ${sel ? 'text-primary' : 'text-on-surface'}`} style={{ fontFamily: 'JetBrains Mono,monospace' }}>{hora}</span>
+                              {sel && <span className="material-symbols-outlined text-primary text-base">check_circle</span>}
+                            </div>
+                            <div className="w-full bg-surface-container h-1">
+                              <div className={`h-full ${cheio ? 'bg-error' : pct > 70 ? 'bg-yellow-400' : 'bg-green-400'}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="font-label-caps text-xs text-on-surface-variant">
+                              {passado ? 'HORÁRIO PASSADO' : cheio ? 'LOTADA' : `${pistaAtual.capacidade - rs.length} vagas`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
               </section>
             )}
 

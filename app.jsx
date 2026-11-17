@@ -893,6 +893,74 @@ function Sessoes() {
   );
 }
 
+// pistas do kartodromo: vem do banco (GET /api/pistas, publico), por categoria
+function Pistas({ onReservar }) {
+  const [, recarregar] = useState(0);
+  useEffect(() => { Api.carregarPistasPublico().then(() => recarregar(v => v + 1)).catch(() => {}); }, []);
+  const lista = Api.cache.pistas;
+  const categorias = [
+    { id: 'kids', titulo: 'KIDS', faixa: 'Menos de 7 anos' },
+    { id: 'junior', titulo: 'JUNIOR', faixa: '7 a 13 anos' },
+    { id: 'open', titulo: 'OPEN', faixa: 'A partir de 14 anos' },
+  ];
+  if (lista.length === 0) return null;
+  return (
+    <section id="pistas" className="py-24 px-margin-edge bg-surface-container-low relative overflow-hidden">
+      <div className="max-w-container-max mx-auto relative z-10">
+        <div className="mb-12">
+          <h2 className="font-headline-lg text-headline-lg text-on-surface italic uppercase">Nossas Pistas</h2>
+          <div className="h-1 w-24 bg-primary-container mt-4 skew-x-m10" aria-hidden="true" />
+          <p className="font-body-md text-body-md text-on-surface-variant mt-4 max-w-2xl">
+            Cada categoria tem duas pistas. Escolha a sua na hora de reservar.
+          </p>
+        </div>
+        <div className="flex flex-col gap-10">
+          {categorias.map(cat => {
+            const pistas = lista.filter(p => p.categoria === cat.id);
+            if (pistas.length === 0) return null;
+            return (
+              <div key={cat.id}>
+                <div className="flex items-baseline gap-4 mb-4">
+                  <h3 className="font-headline-md text-headline-md text-on-surface italic">{cat.titulo}</h3>
+                  <span className="font-label-caps text-label-caps text-secondary">{cat.faixa}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+                  {pistas.map(p => (
+                    <div key={p.id} className="bg-surface-container border border-outline-variant/30 p-6 flex flex-col gap-4">
+                      <div className="flex items-center justify-between">
+                        <span className="font-headline-sm text-headline-sm text-on-surface italic">{p.nome}</span>
+                        <span className="font-label-caps text-label-caps text-primary border border-primary/40 px-2 py-0.5">{cat.titulo}</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div className="bg-surface-container-high py-3">
+                          <div className="font-label-data text-label-data text-on-surface">{p.metros} m</div>
+                          <div className="font-label-caps text-xs text-on-surface-variant">PISTA</div>
+                        </div>
+                        <div className="bg-surface-container-high py-3">
+                          <div className="font-label-data text-label-data text-on-surface">{p.capacidade}</div>
+                          <div className="font-label-caps text-xs text-on-surface-variant">PILOTOS</div>
+                        </div>
+                        <div className="bg-surface-container-high py-3">
+                          <div className="font-label-data text-label-data text-on-surface">{brl(p.precoPorMin)}</div>
+                          <div className="font-label-caps text-xs text-on-surface-variant">POR MINUTO</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-label-caps text-xs text-on-surface-variant">{brl(p.precoPorVolta)} por volta</span>
+                        <button onClick={onReservar} className="font-label-caps text-label-caps bg-primary-container text-white px-5 py-2 hover:opacity-90 transition-opacity">RESERVAR</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // 4. features
 function Features() {
   const features = [
@@ -1488,6 +1556,7 @@ function Home({ onReservar }) {
     <main>
       <Hero onReservar={onReservar} />
       <Sessoes />
+      <Pistas onReservar={onReservar} />
       <Features />
       <Precos onReservar={onReservar} />
       <Rankings />

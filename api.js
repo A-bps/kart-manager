@@ -9,7 +9,7 @@
 const API_URL = 'http://localhost:8080/api';
 
 const Api = (() => {
-  const cache = { pilotos: [], frota: [], reservas: [], faturamento: [], ativas: [], historico: [], dependentes: [] };
+  const cache = { pilotos: [], frota: [], reservas: [], faturamento: [], ativas: [], historico: [], dependentes: [], pistas: [] };
 
   const token = () => sessionStorage.getItem('sp_token');
 
@@ -44,6 +44,8 @@ const Api = (() => {
   const dePiloto = p => ({ ...p, nascimento: p.nascimento || '', altura: p.altura ?? '', peso: p.peso ?? '' });
   const deKart = k => ({ id: k.codigo, numero: k.numero, status: k.estado });
   const deLancamento = f => ({ ...f, valor: Number(f.valor) });
+  // as telas usam o codigo da pista (pista1, pista2...) como id
+  const dePista = p => ({ id: p.codigo, nr: p.nr, nome: p.nome, capacidade: p.capacidade, metros: p.metros, categoria: p.categoria, precoPorMin: Number(p.precoPorMin), precoPorVolta: Number(p.precoPorVolta) });
 
   async function carregarPilotos() { cache.pilotos = (await req('GET', '/pilotos')).map(dePiloto); }
   async function carregarFrota() { cache.frota = (await req('GET', '/karts')).filter(k => k.numero != null).map(deKart); }
@@ -51,6 +53,8 @@ const Api = (() => {
   async function carregarFaturamento() { cache.faturamento = (await req('GET', '/faturamento')).map(deLancamento); }
   async function carregarAtivas() { cache.ativas = await req('GET', '/provas/ativas'); }
   async function carregarHistorico() { cache.historico = await req('GET', '/provas/historico'); }
+  // a lista continua sendo o MESMO array (as telas guardam a referencia): so troca o conteudo
+  async function carregarPistas() { const novas = (await req('GET', '/pistas')).filter(p => p.codigo).map(dePista).sort((a, b) => a.nr - b.nr); cache.pistas.splice(0, cache.pistas.length, ...novas); }
   async function carregarDependentes() { cache.dependentes = await req('GET', '/dependentes'); }
 
   return {
@@ -68,13 +72,14 @@ const Api = (() => {
 
     // --- carga inicial por perfil ---
     async carregar(role) {
-      const tarefas = [carregarFrota(), carregarReservas(), carregarHistorico()];
+      const tarefas = [carregarPistas(), carregarFrota(), carregarReservas(), carregarHistorico()];
       if (role === 'admin') tarefas.push(carregarPilotos(), carregarFaturamento(), carregarAtivas());
       else tarefas.push(carregarDependentes());
       await Promise.all(tarefas);
     },
     // ranking da pagina inicial (publico, sem login)
     async carregarRankingPublico() { await carregarHistorico(); },
+    async carregarPistasPublico() { await carregarPistas(); },
 
     // --- pilotos (admin) ---
     async cadastrarPiloto(dados) { await req('POST', '/pilotos', dados); await carregarPilotos(); },

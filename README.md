@@ -10,7 +10,7 @@ Sistema web para o kartódromo **Speed Park**, composto por três partes:
 >
 > No navegador ficam apenas preferências: tema claro/escuro e o marcador de "última vez que o admin viu a agenda" (selo de novas reservas).
 >
-> 🏁 **Categorias:** definidas pela idade (menos de 7 anos = Kids, 7 a 13 = Junior, 14 ou mais = Open). Cada pista aceita uma categoria (Pista 1 = Kids, Pista 2 = Junior, Pista 3 = Open). A regra é aplicada no servidor: criança não reserva em pista acima e adulto não reserva em pista infantil. Filhos têm a categoria calculada pela data de nascimento. Reservas lançadas pelo admin (só com nome) não passam por essa checagem.
+> 🏁 **Categorias:** definidas pela idade (menos de 7 anos = Kids, 7 a 13 = Junior, 14 ou mais = Open). São 6 pistas, 2 por categoria; cada pista aceita uma categoria (Pista 1 = Kids, Pista 2 = Junior, Pista 3 = Open). A regra é aplicada no servidor: criança não reserva em pista acima e adulto não reserva em pista infantil. Filhos têm a categoria calculada pela data de nascimento. Reservas lançadas pelo admin (só com nome) não passam por essa checagem.
 
 ---
 

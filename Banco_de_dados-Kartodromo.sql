@@ -393,6 +393,9 @@ go
 update Pista set nome = 'Pista 1', codigo = 'pista1', capacidade = 15, metros = 550,  preco_por_min = 6,  preco_por_volta = 4, categoria = 'kids'   where nr = 1
 update Pista set nome = 'Pista 2', codigo = 'pista2', capacidade = 20, metros = 800,  preco_por_min = 8,  preco_por_volta = 6, categoria = 'junior' where nr = 2
 update Pista set nome = 'Pista 3', codigo = 'pista3', capacidade = 30, metros = 1200, preco_por_min = 10, preco_por_volta = 8, categoria = 'open'   where nr = 3
+update Pista set nome = 'Pista 4', codigo = 'pista4', capacidade = 12, metros = 450,  preco_por_min = 6,  preco_por_volta = 4, categoria = 'kids'   where nr = 4
+update Pista set nome = 'Pista 5', codigo = 'pista5', capacidade = 16, metros = 700,  preco_por_min = 8,  preco_por_volta = 6, categoria = 'junior' where nr = 5
+update Pista set nome = 'Pista 6', codigo = 'pista6', capacidade = 24, metros = 1000, preco_por_min = 10, preco_por_volta = 8, categoria = 'open'   where nr = 6
 go
 
 -- =========================================

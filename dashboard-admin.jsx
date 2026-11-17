@@ -107,11 +107,8 @@ function somarDias(data, n) {
 }
 
 // === agenda fixa ===
-const PISTAS = [
-  { id: 'pista1', nome: 'Pista 1', capacidade: 15, metros: 550,  categoria: 'junior' },
-  { id: 'pista2', nome: 'Pista 2', capacidade: 20, metros: 800,  categoria: 'open'   },
-  { id: 'pista3', nome: 'Pista 3', capacidade: 30, metros: 1200, categoria: 'open'   },
-];
+// pistas vindas do banco (GET /api/pistas); o array e preenchido na carga inicial (Api.carregar)
+const PISTAS = Api.cache.pistas;
 const HORARIOS_SEMANA = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
 const HORARIOS_FDS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
 

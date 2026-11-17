@@ -101,10 +101,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/error").permitAll() // senao um erro 500 vira 403 para quem nao e admin
                         .requestMatchers("/api/auth/login", "/api/auth/registro", "/api/auth/redefinir-senha").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/provas/historico").permitAll() // ranking da pagina inicial
+                        .requestMatchers(HttpMethod.GET, "/api/provas/historico", "/api/pistas").permitAll() // ranking e pistas na pagina inicial
                         .requestMatchers("/api/auth/me", "/api/reservas", "/api/reservas/**",
                                 "/api/dependentes", "/api/dependentes/**").authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/karts", "/api/pistas").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/karts").authenticated()
                         // pilotos: lista, cadastro e exclusao so admin; ver/editar o proprio perfil e checado no servico
                         .requestMatchers(HttpMethod.GET, "/api/pilotos/*").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/pilotos/*").authenticated()
