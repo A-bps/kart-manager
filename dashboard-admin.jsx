@@ -109,6 +109,8 @@ function somarDias(data, n) {
 // === agenda fixa ===
 // pistas vindas do banco (GET /api/pistas); o array e preenchido na carga inicial (Api.carregar)
 const PISTAS = Api.cache.pistas;
+// grade da agenda: coluna da hora + uma coluna por pista (largura minima para caber nome e selo)
+const colunasPistas = () => `5rem repeat(${PISTAS.length}, minmax(9.5rem, 1fr))`;
 const HORARIOS_SEMANA = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
 const HORARIOS_FDS = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
 
@@ -932,8 +934,10 @@ function Agenda() {
         <span>{totalPilotosDia} piloto{totalPilotosDia !== 1 ? 's' : ''} agendado{totalPilotosDia !== 1 ? 's' : ''} hoje</span>
       </div>
 
+      <div className="overflow-x-auto pb-2">
+        <div className="flex flex-col gap-3 md:min-w-[68rem]">
       {/* header das pistas (desktop) */}
-      <div className="hidden md:grid gap-3" style={{ gridTemplateColumns: '5rem 1fr 1fr 1fr' }}>
+      <div className="hidden md:grid gap-3" style={{ gridTemplateColumns: colunasPistas() }}>
         <div />
         {PISTAS.map(pista => (
           <div key={pista.id} className="bg-surface-container border border-outline-variant/20 px-4 py-3 text-center">
@@ -948,7 +952,7 @@ function Agenda() {
         {horarios.map(hora => (
           <React.Fragment key={hora}>
             {/* linha da hora */}
-            <div className="md:grid gap-3 flex flex-col" style={{ gridTemplateColumns: '5rem 1fr 1fr 1fr' }}>
+            <div className="md:grid gap-3 flex flex-col" style={{ gridTemplateColumns: colunasPistas() }}>
               {/* hora */}
               <div className="hidden md:flex items-center justify-center">
                 <span className="text-on-surface font-bold" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '16px' }}>{hora}</span>
@@ -978,8 +982,8 @@ function Agenda() {
                     <p className="md:hidden px-4 pt-3 text-on-surface-variant" style={lbl}>{pista.nome} · {pista.metros}m</p>
 
                     {/* botão de célula */}
-                    <button onClick={() => toggleSlot(hora, pista.id)} className="w-full text-left p-4 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
+                    <button onClick={() => toggleSlot(hora, pista.id)} className="w-full text-left p-3 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="text-on-surface" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '14px' }}>{ocup}/{cap}</span>
                         <span className={`border px-2 py-0.5 ${cheio ? 'border-error/40 bg-error/10 text-error' : 'border-green-500/40 bg-green-500/10 text-green-400'}`}
                           style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>
@@ -1059,6 +1063,8 @@ function Agenda() {
             </div>
           </React.Fragment>
         ))}
+      </div>
+        </div>
       </div>
 
       {slotParaIniciar && (
