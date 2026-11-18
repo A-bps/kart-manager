@@ -242,7 +242,7 @@ Requisitos da Etapa 3 e onde cada um está atendido. Os recursos ficam no bloco 
 | | `fc_RankingPilotos_SpeedPark` (variável tipo tabela, *multi-statement*) | Corridas, vitórias e pontos estilo F1 | `GET /api/relatorios/ranking` |
 
 - As telas de **Relatórios** do admin mostram as 3 views, as 2 functions de tabela e os 3 logs das triggers.
-- **DER e Dicionário de Dados:** `Banco-Kartodromo/DER-SpeedPark.png` (fonte `DER-SpeedPark.mmd`) e `Banco-Kartodromo/Dicionario-de-Dados-SpeedPark.md` (colunas, tipos, chaves, referências e restrições, gerados do banco real).
+- **DER e Dicionário de Dados:** `Banco-Kartodromo/DER-SpeedPark.png` (imagem do diagrama gerado no SQL Server Management Studio) e `Banco-Kartodromo/Dicionario-de-Dados-SpeedPark.md` (colunas, tipos, chaves, referências e restrições, gerados do banco real).
 - Se o banco foi criado só pelo Hibernate (sem o script), a própria API cria os objetos que faltam ao subir (`BancoRecursosInicializador`): ela lê este mesmo script e executa apenas os `create` de objetos que ainda não existem, ignorando os testes.
 - Atenção: o script oficial **não altera** objeto que já existe; para mudar uma procedure/view/function é preciso apagá-la (`drop`) antes.
 
