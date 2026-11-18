@@ -24,12 +24,21 @@ function pilotos_cadastrar(p) {
 // === frota ===
 function frota_listar() { return Api.cache.frota; }
 function frota_add(numero) { return Api.adicionarKart(numero); }
-function frota_setStatus(id, status) { return Api.statusKart(id, status); }
+function frota_setStatus(id, status, extra) { return Api.statusKart(id, status, extra); }
 function frota_remover(id) { return Api.removerKart(id); }
 function karts_livres() {
   const ativos = frota_listar().filter(k => k.status === 'pronto' || k.status === 'stress').length;
   const emUso  = corridas_listar().reduce((s, c) => s + (c.posicoes || []).length, 0);
   return Math.max(0, ativos - emUso);
+}
+
+function idadeEm(nascimento) {
+  if (!nascimento) return 0;
+  const hoje = new Date();
+  const nasc = new Date(nascimento + 'T12:00:00');
+  let idade = hoje.getFullYear() - nasc.getFullYear();
+  if (hoje < new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate())) idade--;
+  return idade;
 }
 
 function calcCategoria(nascimento) {
@@ -835,9 +844,14 @@ function Agenda() {
   const [slotAberto, setSlotAberto] = useState(null);
   const [formNome, setFormNome] = useState('');
   const [formNasc, setFormNasc] = useState('');
+  const [formFormato, setFormFormato] = useState('tempo'); // vazio = cortesia
+  const [formQtd, setFormQtd] = useState(10);
+  const [formPag, setFormPag] = useState('dinheiro');
   const [slotParaIniciar, setSlotParaIniciar] = useState(null);
   const [, forceUpdate] = useState(0);
   const pilotosCadastrados = pilotos_listar();
+  const mudarFormato = (f) => { setFormFormato(f); setFormQtd(f === 'voltas' ? 5 : 10); };
+  const valorBalcao = (pista) => !formFormato ? 0 : (formFormato === 'tempo' ? pista.precoPorMin : pista.precoPorVolta) * formQtd;
 
   const reload = () => forceUpdate(x => x + 1);
 
@@ -851,7 +865,7 @@ function Agenda() {
 
   const toggleSlot = (hora, pistaId) => {
     setSlotAberto(s => s === slotKey(hora, pistaId) ? null : slotKey(hora, pistaId));
-    setFormNome(''); setFormNasc('');
+    setFormNome(''); setFormNasc(''); mudarFormato('tempo'); setFormPag('dinheiro');
   };
 
   // piloto ja cadastrado: preenche o nascimento sozinho
@@ -867,7 +881,8 @@ function Agenda() {
     const pista = PISTAS.find(p => p.id === pistaId);
     if (reservas_do_slot(dataAtiva, hora, pistaId).length >= pista.capacidade) return;
     try {
-      await reservas_add({ data: dataAtiva, hora, pistaId, nome: formNome.trim(), nascimento: formNasc });
+      const cobranca = formFormato ? { formato: formFormato, qtd: formQtd, formaPagamento: formPag } : {};
+      await reservas_add({ data: dataAtiva, hora, pistaId, nome: formNome.trim(), nascimento: formNasc, ...cobranca });
       setFormNome(''); setFormNasc('');
     } catch (e) { apiErro(e); }
     reload();
@@ -1026,7 +1041,11 @@ function Agenda() {
                         )}
 
                         {/* adicionar piloto */}
-                        {!cheio && (
+                        {!cheio && (dataAtiva < hoje || (dataAtiva === hoje && hora < new Date().toTimeString().slice(0, 5))) && (
+                          <p className="text-on-surface-variant" style={lbl}>HORÁRIO JÁ PASSOU — NÃO É POSSÍVEL ADICIONAR</p>
+                        )}
+                        {!cheio && !(dataAtiva < hoje || (dataAtiva === hoje && hora < new Date().toTimeString().slice(0, 5))) && (
+                          <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2">
                             <datalist id="pilotos-agenda">
                               {pilotosCadastrados.map(p => <option key={p.id} value={p.nome} />)}
@@ -1044,10 +1063,39 @@ function Agenda() {
                               <span className="material-symbols-outlined text-sm">person_add</span>ADD
                             </button>
                           </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <select value={formFormato} onChange={e => mudarFormato(e.target.value)} className="modal-input" style={{ width: 'auto' }}>
+                              <option value="tempo">Por tempo</option>
+                              <option value="voltas">Por voltas</option>
+                              <option value="">Cortesia (sem cobrança)</option>
+                            </select>
+                            {formFormato && (
+                              <>
+                                <select value={formQtd} onChange={e => setFormQtd(Number(e.target.value))} className="modal-input" style={{ width: 'auto' }}>
+                                  {(formFormato === 'tempo' ? [10, 15, 20, 30] : [5, 10, 15, 20]).map(q =>
+                                    <option key={q} value={q}>{q} {formFormato === 'tempo' ? 'min' : 'voltas'}</option>)}
+                                </select>
+                                <select value={formPag} onChange={e => setFormPag(e.target.value)} className="modal-input" style={{ width: 'auto' }}>
+                                  <option value="dinheiro">Dinheiro</option>
+                                  <option value="pix">PIX</option>
+                                  <option value="cartao_debito">Débito</option>
+                                  <option value="cartao_credito">Crédito</option>
+                                </select>
+                                <span className="text-secondary" style={lbl}>R$ {valorBalcao(pista).toFixed(2)}</span>
+                              </>
+                            )}
+                          </div>
+                          </div>
                         )}
 
                         {/* iniciar corrida */}
-                        {rs.length > 0 && (
+                        {rs.length > 0 && dataAtiva !== hoje && (
+                          <p className="text-on-surface-variant" style={lbl}>SÓ É POSSÍVEL INICIAR A CORRIDA NO DIA DA RESERVA</p>
+                        )}
+                        {rs.length > 0 && dataAtiva === hoje && corrida_pista_ocupada(pista.id) && (
+                          <p className="text-on-surface-variant" style={lbl}>PISTA COM CORRIDA EM ANDAMENTO</p>
+                        )}
+                        {rs.length > 0 && dataAtiva === hoje && !corrida_pista_ocupada(pista.id) && (
                           <button
                             onClick={() => setSlotParaIniciar({ pilotos: rs.map(r => ({ nome: r.nome, kart: '' })), pistaId: pista.id })}
                             className="flex items-center justify-center gap-2 border border-primary/40 bg-primary-container/10 py-2 text-primary transition-colors hover:bg-primary-container/20"
@@ -1084,7 +1132,24 @@ function Frota() {
   const [frota, setFrota] = useState(frota_listar);
   const [novoNum, setNovoNum] = useState('');
   const [erro, setErro] = useState('');
+  const [manutKart, setManutKart] = useState(null);
+  const [manutForm, setManutForm] = useState({ motivo: '', valor: '', formaPagamento: '' });
+  const [manutErro, setManutErro] = useState('');
   const reload = () => setFrota(frota_listar());
+  const mandarParaManutencao = async () => {
+    if (!manutForm.motivo.trim()) { setManutErro('Informe o motivo da manutenção'); return; }
+    try {
+      await frota_setStatus(manutKart.id, 'manutencao', manutForm);
+    } catch (e) { setManutErro(e.message); return; }
+    setManutKart(null); reload();
+  };
+  const trocarStatus = (k, val) => {
+    if (val === 'manutencao' && k.status !== 'manutencao') {
+      setManutForm({ motivo: '', valor: '', formaPagamento: '' }); setManutErro(''); setManutKart(k);
+    } else {
+      acao(() => frota_setStatus(k.id, val));
+    }
+  };
   const addKart = async () => {
     const num = Number(novoNum);
     if (!num || num < 1) { setErro('Número inválido'); return; }
@@ -1139,9 +1204,19 @@ function Frota() {
                 </div>
                 <span className={`self-start border px-2 py-0.5 ${cfg.cls}`}
                   style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>{cfg.label}</span>
+                {k.status === 'manutencao' && (
+                  <>
+                    {k.motivo && <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>Motivo: {k.motivo}</p>}
+                    <button onClick={() => trocarStatus(k, 'pronto')}
+                      className="flex items-center justify-center gap-1 border border-green-500/40 bg-green-500/10 px-2 py-1.5 text-green-400 transition-colors hover:bg-green-500/20"
+                      style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.05em' }}>
+                      <span className="material-symbols-outlined text-sm">build_circle</span>CONSERTADO: VOLTAR PARA A FROTA
+                    </button>
+                  </>
+                )}
                 <div className="flex flex-col gap-1">
                   {Object.entries(statusCfg).map(([val, c]) => (
-                    <button key={val} onClick={() => acao(() => frota_setStatus(k.id, val))}
+                    <button key={val} onClick={() => trocarStatus(k, val)}
                       className={`px-2 py-1 text-left transition-colors ${k.status === val ? `border ${c.cls} font-bold` : 'text-on-surface-variant hover:bg-surface-container-high'}`}
                       style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>{c.label}</button>
                   ))}
@@ -1149,6 +1224,33 @@ function Frota() {
               </div>
             );
           })}
+        </div>
+      )}
+      {manutKart && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setManutKart(null)}>
+          <div className="w-full max-w-md border border-outline-variant/20 bg-surface p-6 flex flex-col gap-3" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '20px' }}>Kart #{manutKart.numero} para manutenção</h3>
+            <input type="text" className="modal-input" placeholder="Motivo da manutenção (ex.: freio com folga)" maxLength={255} autoFocus
+              value={manutForm.motivo} onChange={e => { setManutForm(f => ({ ...f, motivo: e.target.value })); setManutErro(''); }} />
+            <div className="flex gap-2">
+              <input type="number" min="0" step="0.01" className="modal-input" placeholder="Valor previsto (R$)"
+                value={manutForm.valor} onChange={e => setManutForm(f => ({ ...f, valor: e.target.value }))} />
+              <select className="modal-input" value={manutForm.formaPagamento} onChange={e => setManutForm(f => ({ ...f, formaPagamento: e.target.value }))}>
+                <option value="">Pagamento: a definir</option>
+                <option value="dinheiro">Dinheiro</option>
+                <option value="pix">PIX</option>
+                <option value="cartao_debito">Cartão de débito</option>
+                <option value="cartao_credito">Cartão de crédito</option>
+              </select>
+            </div>
+            {manutErro && <p className="text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px' }}>{manutErro}</p>}
+            <div className="flex gap-2">
+              <button onClick={mandarParaManutencao} className="bg-primary-container px-4 py-2 text-white hover:opacity-90"
+                style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.1em' }}>COLOCAR EM MANUTENÇÃO</button>
+              <button onClick={() => setManutKart(null)} className="border border-outline-variant/30 px-4 py-2 text-on-surface-variant hover:bg-surface-container"
+                style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', fontWeight: '700', letterSpacing: '0.1em' }}>CANCELAR</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -1548,8 +1650,99 @@ function ModalCadastrarPiloto({ onClose, onCadastrado }) {
 }
 
 // === clientes ===
+// === dependentes ===
+function DependentesModal({ piloto, onClose }) {
+  const VAZIO = { nome: '', nascimento: '', altura: '', peso: '' };
+  const [lista, setLista] = useState([]);
+  const [form, setForm] = useState(VAZIO);
+  const [editId, setEditId] = useState(null);
+  const [erro, setErro] = useState('');
+  const num = v => (v === '' || v == null ? null : Number(v));
+  const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' };
+
+  const carregar = async () => {
+    try { setLista(await Api.dependentesDoCliente(piloto.id)); } catch (e) { setErro(e.message); }
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const salvar = async () => {
+    if (!form.nome.trim() || !form.nascimento) { setErro('Informe o nome e a data de nascimento'); return; }
+    const dados = { nome: form.nome.trim(), nascimento: form.nascimento, altura: num(form.altura), peso: num(form.peso) };
+    try {
+      if (editId) await Api.editarDependenteAdmin(editId, dados); else await Api.adicionarDependenteDoCliente(piloto.id, dados);
+    } catch (e) { setErro(e.message); return; }
+    setForm(VAZIO); setEditId(null); setErro(''); carregar();
+  };
+
+  const remover = async (id) => {
+    try { await Api.removerDependenteAdmin(id); } catch (e) { setErro(e.message); return; }
+    carregar();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto border border-secondary/30 bg-surface p-6" onClick={e => e.stopPropagation()}>
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h3 className="font-bold italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '20px' }}>Dependentes</h3>
+            <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>Responsável: {piloto.nome}</p>
+          </div>
+          <button onClick={onClose} className="text-on-surface-variant hover:text-primary"><span className="material-symbols-outlined">close</span></button>
+        </div>
+
+        {lista.length === 0 ? (
+          <p className="mb-4 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>Nenhum dependente cadastrado.</p>
+        ) : (
+          <div className="mb-4 flex flex-col gap-2">
+            {lista.map(d => (
+              <div key={d.id} className="flex items-center gap-2 bg-surface-container px-3 py-2">
+                <div className="flex-1">
+                  <div className="text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>{d.nome}</div>
+                  <div className="text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>
+                    {d.nascimento ? new Date(d.nascimento + 'T12:00:00').toLocaleDateString('pt-BR') : '--'} · {(d.categoria || '').toUpperCase()}
+                  </div>
+                </div>
+                <button onClick={() => { setEditId(d.id); setForm({ nome: d.nome, nascimento: d.nascimento || '', altura: d.altura ?? '', peso: d.peso ?? '' }); setErro(''); }}
+                  title="Editar" className="flex h-8 w-8 items-center justify-center border border-secondary/30 text-secondary hover:bg-secondary/10">
+                  <span className="material-symbols-outlined text-base">edit</span>
+                </button>
+                <button onClick={() => remover(d.id)} title="Apagar"
+                  className="flex h-8 w-8 items-center justify-center border border-error/30 text-error hover:bg-error/10">
+                  <span className="material-symbols-outlined text-base">delete</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2 border-t border-outline-variant/20 pt-4">
+          <p className="text-secondary" style={lbl}>{editId ? 'EDITAR DEPENDENTE' : 'NOVO DEPENDENTE'}</p>
+          <input type="text" className="modal-input" placeholder="Nome do dependente" value={form.nome}
+            onChange={e => { setForm(f => ({ ...f, nome: e.target.value })); setErro(''); }} />
+          <input type="date" className="modal-input" style={{ colorScheme: 'dark' }} title="Data de nascimento" value={form.nascimento}
+            max={dataLocal()} onChange={e => { setForm(f => ({ ...f, nascimento: e.target.value })); setErro(''); }} />
+          <div className="flex gap-2">
+            <input type="number" className="modal-input" placeholder="Altura (cm)" value={form.altura} onChange={e => setForm(f => ({ ...f, altura: e.target.value }))} />
+            <input type="number" className="modal-input" placeholder="Peso (kg)" value={form.peso} onChange={e => setForm(f => ({ ...f, peso: e.target.value }))} />
+          </div>
+          {erro && <p className="text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px' }}>{erro}</p>}
+          <div className="flex gap-2">
+            <button onClick={salvar} className="bg-primary-container px-4 py-2 text-white hover:opacity-90" style={lbl}>{editId ? 'SALVAR' : 'ADICIONAR'}</button>
+            {editId && <button onClick={() => { setEditId(null); setForm(VAZIO); setErro(''); }}
+              className="border border-outline-variant/30 px-4 py-2 text-on-surface-variant hover:bg-surface-container" style={lbl}>CANCELAR EDIÇÃO</button>}
+          </div>
+          <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>
+            A categoria é calculada pela data de nascimento. O responsável verá o dependente no painel dele.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Clientes() {
   const [pilotos, setPilotos] = useState(pilotos_listar);
+  const [dependentesDe, setDependentesDe] = useState(null);
   const [busca, setBusca] = useState('');
   const [pendDelete, setPendDelete] = useState(null);
   const [showCadastro, setShowCadastro] = useState(false);
@@ -1690,10 +1883,18 @@ function Clientes() {
                             className="border border-outline-variant/30 px-2 py-1 text-on-surface-variant transition-colors hover:bg-surface" style={lbl}>CANCELAR</button>
                         </div>
                       ) : (
-                        <button onClick={() => setPendDelete(p.id)}
-                          className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-auto flex h-8 w-8 items-center justify-center border border-error/30 text-error hover:bg-error/10">
-                          <span className="material-symbols-outlined text-base">delete</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          {idadeEm(p.nascimento) >= 18 && (
+                            <button onClick={() => setDependentesDe(p)} title="Dependentes (filhos)"
+                              className="flex h-8 items-center gap-1 border border-secondary/30 px-2 text-secondary hover:bg-secondary/10" style={lbl}>
+                              <span className="material-symbols-outlined text-base">child_care</span>DEPENDENTES
+                            </button>
+                          )}
+                          <button onClick={() => setPendDelete(p.id)}
+                            className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex h-8 w-8 items-center justify-center border border-error/30 text-error hover:bg-error/10">
+                            <span className="material-symbols-outlined text-base">delete</span>
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1707,54 +1908,57 @@ function Clientes() {
       {showCadastro && (
         <ModalCadastrarPiloto onClose={() => setShowCadastro(false)} onCadastrado={handleCadastrado} />
       )}
+      {dependentesDe && <DependentesModal piloto={dependentesDe} onClose={() => setDependentesDe(null)} />}
     </div>
   );
 }
 
 // === classificação ===
-const PONTOS_F1 = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
 const medalhas = ['text-yellow-400', 'text-zinc-400', 'text-amber-600'];
 
 function Classificacao() {
   const historico = historico_listar();
-  const [filtro, setFiltro] = useState('geral');
+  const [categoria, setCategoria] = useState('open');
+  const [pistaFiltro, setPistaFiltro] = useState('');
 
-  const mapa = {};
-  historico.forEach(corrida => {
-    (corrida.posicoes || []).forEach((p, i) => {
-      const key = p.nome.trim().toLowerCase();
-      if (!mapa[key]) mapa[key] = { nome: p.nome.trim(), corridas: 0, pontos: 0, vitorias: 0, melhorVolta: null };
-      mapa[key].corridas++;
-      mapa[key].pontos += PONTOS_F1[i] || 0;
-      if (i === 0) mapa[key].vitorias++;
-      if (p.melhorVolta) {
-        const v = parseFloat(p.melhorVolta);
-        if (!isNaN(v) && (mapa[key].melhorVolta === null || v < mapa[key].melhorVolta)) {
-          mapa[key].melhorVolta = v;
-        }
-      }
-    });
-  });
-
-  const ranking = Object.values(mapa)
-    .sort((a, b) => b.pontos - a.pontos || b.vitorias - a.vitorias)
-    .map((p, i) => ({ ...p, pos: i + 1 }));
+  const pistasDaCategoria = PISTAS.filter(p => p.categoria === categoria);
+  const ranking = rankingPorFiltro(historico, PISTAS, categoria, pistaFiltro);
+  const escolherCategoria = (id) => { setCategoria(id); setPistaFiltro(''); };
 
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' };
+  const abaClasse = (ativa) => `border px-4 py-2 transition-colors ${ativa
+    ? 'border-primary-container bg-primary-container/10 text-primary'
+    : 'border-outline-variant/30 text-on-surface-variant hover:border-secondary'}`;
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="font-black italic text-on-surface" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '32px', lineHeight: '1.2' }}>Classificação</h1>
         <p className="mt-1 text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>
-          Ranking gerado automaticamente a partir do histórico de corridas.
+          Pontos por posição de chegada, separados por categoria e por pista. A melhor volta só aparece ao escolher uma pista, porque o tempo só é comparável na mesma pista.
         </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2">
+          {[['open', 'OPEN'], ['junior', 'JUNIOR'], ['kids', 'KIDS']].map(([id, rotulo]) => (
+            <button key={id} onClick={() => escolherCategoria(id)} className={abaClasse(categoria === id)} style={lbl}>{rotulo}</button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-on-surface-variant" style={lbl}>PISTA:</span>
+          {[{ id: '', nome: 'TODAS' }, ...pistasDaCategoria].map(p => (
+            <button key={p.id || 'todas'} onClick={() => setPistaFiltro(p.id)} className={abaClasse(pistaFiltro === p.id)} style={lbl}>
+              {p.nome.toUpperCase()}{p.metros ? ` · ${p.metros} M` : ''}
+            </button>
+          ))}
+        </div>
       </div>
 
       {ranking.length === 0 ? (
         <div className="flex flex-col items-center gap-4 border border-outline-variant/20 bg-surface-container py-20 text-on-surface-variant">
           <span className="material-symbols-outlined text-5xl">leaderboard</span>
-          <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>Nenhuma corrida encerrada ainda</p>
+          <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>Nenhuma corrida encerrada nesta {pistaFiltro ? 'pista' : 'categoria'} ainda</p>
           <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px', opacity: 0.6 }}>
             Inicie e encerre corridas pelo Painel para gerar o ranking.
           </p>
@@ -1779,7 +1983,7 @@ function Classificacao() {
                 style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>{p.nome}</span>
               <span className="text-on-surface-variant text-right" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '13px' }}>{p.vitorias}</span>
               <span className="text-secondary text-right" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '13px' }}>
-                {p.melhorVolta !== null ? `${p.melhorVolta.toFixed(1)}s` : '--'}
+                {formatarVolta(p.melhorVolta)}
               </span>
               <span className="text-on-surface-variant text-right" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '13px' }}>{p.corridas}</span>
               <span className={`text-right font-bold ${i === 0 ? 'text-primary' : 'text-on-surface-variant'}`}
@@ -1970,10 +2174,13 @@ const CADASTROS = [
     campos: [{ n: 'nome', l: 'Nome', t: 'text' }, { n: 'codigo', l: 'Código (ex.: pista1)', t: 'text' }, { n: 'capacidade', l: 'Capacidade', t: 'number' }, { n: 'metros', l: 'Metros', t: 'number' },
       { n: 'precoPorMin', l: 'Preço por minuto', t: 'number', passo: '0.01' }, { n: 'precoPorVolta', l: 'Preço por volta', t: 'number', passo: '0.01' }, { n: 'categoria', l: 'Categoria', t: 'select', opcoes: CAT_PISTA }] },
   { id: 'manutencoes', titulo: 'Manutenções', caminho: 'manutencoes', chave: r => r.codigo,
-    colunas: [['Nº', r => r.codigo], ['Kart', r => r.kart && r.kart.numero], ['Status', r => r.status], ['Valor', r => r.valor], ['Pagamento', r => r.formaPagamento]],
-    campos: [{ n: 'kartCodigo', l: 'Kart', t: 'number', ref: REF.karts }, { n: 'status', l: 'Status (ex.: aberta, concluída)', t: 'text' }, { n: 'valor', l: 'Valor (R$)', t: 'number', passo: '0.01' }, { n: 'formaPagamento', l: 'Forma de pagamento', t: 'text' }],
-    paraForm: r => ({ kartCodigo: r.kart && r.kart.codigo }),
-    dica: 'Ao registrar uma manutenção nova, o banco (procedure) coloca o kart em "manutenção".' },
+    colunas: [['Nº', r => r.codigo], ['Kart', r => r.kart && r.kart.numero], ['Motivo', r => r.kart && r.kart.historico], ['Status', r => ({ aberta: 'Aberta', concluida: 'Concluída' }[r.status] || r.status)], ['Valor', r => r.valor], ['Pagamento', r => ({ dinheiro: 'Dinheiro', pix: 'PIX', cartao_debito: 'Cartão de débito', cartao_credito: 'Cartão de crédito' }[r.formaPagamento] || r.formaPagamento)]],
+    campos: [{ n: 'kartCodigo', l: 'Kart', t: 'number', ref: REF.karts }, { n: 'motivo', l: 'Motivo da manutenção', t: 'text' },
+      { n: 'status', l: 'Status', t: 'select', opcoes: [['aberta', 'Aberta'], ['concluida', 'Concluída']] }, { n: 'valor', l: 'Valor (R$)', t: 'number', passo: '0.01' },
+      { n: 'formaPagamento', l: 'Forma de pagamento', t: 'select', opcoes: [['dinheiro', 'Dinheiro'], ['pix', 'PIX'], ['cartao_debito', 'Cartão de débito'], ['cartao_credito', 'Cartão de crédito']] }],
+    paraForm: r => ({ kartCodigo: r.kart && r.kart.codigo, motivo: r.kart && r.kart.historico }),
+    ocultaPadrao: r => r.status === 'concluida',
+    dica: 'Ao registrar uma manutenção nova, o banco (procedure) coloca o kart em "manutenção". Kart consertado (botão da Frota ou status Concluída) volta para a frota, sai desta lista e fica no histórico: marque "Mostrar concluídas" para vê-lo. A view da frota conta todas.' },
   { id: 'ufs', titulo: 'Estados (UF)', caminho: 'ufs', chave: r => r.sigla,
     colunas: [['Sigla', r => r.sigla], ['Nome', r => r.nome]],
     campos: [{ n: 'sigla', l: 'Sigla (2 letras)', t: 'text', soCriar: true }, { n: 'nome', l: 'Nome', t: 'text' }] },
@@ -2018,6 +2225,7 @@ function Cadastros() {
   const [erro, setErro] = useState('');
   const [form, setForm] = useState(null); // { chave: null (novo) ou chave do registro, valores }
   const [refs, setRefs] = useState({});
+  const [mostrarOcultas, setMostrarOcultas] = useState(false);
   const cad = CADASTROS.find(c => c.id === aba);
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em' };
   const txt = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' };
@@ -2066,6 +2274,7 @@ function Cadastros() {
 
   const celula = (rotulo, v) => (typeof v === 'number' && /valor|salário|preço/i.test(rotulo) ? `R$ ${v.toFixed(2).replace('.', ',')}` : celulaRelatorio(rotulo, v));
   const editavel = !cad.semEditar && cad.campos;
+  const visiveis = linhas && cad.ocultaPadrao && !mostrarOcultas ? linhas.filter(l => !cad.ocultaPadrao(l)) : linhas;
 
   return (
     <div className="flex flex-col gap-6">
@@ -2128,9 +2337,16 @@ function Cadastros() {
 
       {erro && <p className="text-error" style={txt}>{erro}</p>}
 
+      {cad.ocultaPadrao && linhas && (
+        <label className="flex items-center gap-2 text-on-surface-variant" style={txt}>
+          <input type="checkbox" checked={mostrarOcultas} onChange={e => setMostrarOcultas(e.target.checked)} />
+          Mostrar concluídas (histórico) · {linhas.filter(cad.ocultaPadrao).length} oculta(s)
+        </label>
+      )}
+
       {linhas === null ? (
         <p className="text-on-surface-variant" style={txt}>Consultando o banco...</p>
-      ) : linhas.length === 0 ? (
+      ) : visiveis.length === 0 ? (
         <div className="flex flex-col items-center gap-3 border border-outline-variant/20 bg-surface-container py-14 text-on-surface-variant">
           <span className="material-symbols-outlined text-5xl">table_chart</span>
           <p style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '14px' }}>Nenhum registro cadastrado.</p>
@@ -2145,7 +2361,7 @@ function Cadastros() {
               </tr>
             </thead>
             <tbody>
-              {linhas.map((l, i) => (
+              {visiveis.map((l, i) => (
                 <tr key={i} className="border-b border-outline-variant/10 last:border-0 transition-colors hover:bg-surface-container-high">
                   {cad.colunas.map(([rotulo, fn]) => <td key={rotulo} className="px-4 py-3 text-on-surface whitespace-nowrap" style={txt}>{celula(rotulo, fn(l))}</td>)}
                   <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -2158,8 +2374,8 @@ function Cadastros() {
           </table>
         </div>
       )}
-      {linhas && linhas.length > 0 && (
-        <p className="text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>{linhas.length} registro(s)</p>
+      {visiveis && visiveis.length > 0 && (
+        <p className="text-on-surface-variant" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>{visiveis.length} registro(s)</p>
       )}
     </div>
   );

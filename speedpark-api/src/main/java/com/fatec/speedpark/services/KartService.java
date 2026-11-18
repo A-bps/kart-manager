@@ -32,13 +32,25 @@ public class KartService {
         return repository.save(kart);
     }
 
+    // kart consertado: conclui as manutencoes abertas dele
+    @Transactional
     public Kart atualizar(Integer codigo, Kart dadosAtualizados) {
         Kart kartExistente = buscarPorId(codigo);
         if (dadosAtualizados.getNumero() != null) {
             kartExistente.setNumero(dadosAtualizados.getNumero());
         }
+        if ("manutencao".equals(kartExistente.getEstado()) && !"manutencao".equals(dadosAtualizados.getEstado())) {
+            manutencaoRepository.findByKart_Codigo(codigo).stream()
+                    .filter(m -> "aberta".equals(m.getStatus()))
+                    .forEach(m -> {
+                        m.setStatus("concluida");
+                        manutencaoRepository.save(m);
+                    });
+        }
         kartExistente.setEstado(dadosAtualizados.getEstado());
-        kartExistente.setHistorico(dadosAtualizados.getHistorico());
+        if (dadosAtualizados.getHistorico() != null) {
+            kartExistente.setHistorico(dadosAtualizados.getHistorico());
+        }
         return repository.save(kartExistente);
     }
 

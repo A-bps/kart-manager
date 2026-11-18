@@ -129,13 +129,25 @@ function ModalLogin({ onClose, onLogin, onOpenCadastro }) {
             </div>
             <div>
               <label className="modal-label">Nova senha</label>
-              <input type="password" className="modal-input" placeholder="Mínimo 6 caracteres"
-                value={rd.nova} onChange={setRdCampo('nova')} autoComplete="new-password" />
+              <div className="relative">
+                <input type={mostrarSenha ? 'text' : 'password'} className="modal-input" placeholder="Mínimo 6 caracteres"
+                  value={rd.nova} onChange={setRdCampo('nova')} autoComplete="new-password" style={{ paddingRight: '44px' }} />
+                <button type="button" onClick={() => setMostrarSenha(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
+                  <span className="material-symbols-outlined text-lg">{mostrarSenha ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
             </div>
             <div>
               <label className="modal-label">Confirmar nova senha</label>
-              <input type="password" className="modal-input" placeholder="Repita a nova senha"
-                value={rd.confirmar} onChange={setRdCampo('confirmar')} autoComplete="new-password" />
+              <div className="relative">
+                <input type={mostrarSenha ? 'text' : 'password'} className="modal-input" placeholder="Repita a nova senha"
+                  value={rd.confirmar} onChange={setRdCampo('confirmar')} autoComplete="new-password" style={{ paddingRight: '44px' }} />
+                <button type="button" onClick={() => setMostrarSenha(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary transition-colors">
+                  <span className="material-symbols-outlined text-lg">{mostrarSenha ? 'visibility_off' : 'visibility'}</span>
+                </button>
+              </div>
             </div>
             {erro && (
               <div className="flex items-center gap-2 bg-error-container/20 border border-error/30 px-4 py-3">
@@ -1233,36 +1245,16 @@ const CATEGORIAS = [
 ];
 
 const medalhas = ['text-yellow-400', 'text-zinc-400', 'text-amber-600'];
-const PONTOS_F1 = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
-
-function buildRanking() {
-  const historico = Api.cache.historico; // corridas encerradas, vindas do banco
-  if (historico.length === 0) return [];
-  const mapa = {};
-  historico.forEach(corrida => {
-    (corrida.posicoes || []).forEach((p, i) => {
-      const key = p.nome.trim().toLowerCase();
-      if (!mapa[key]) mapa[key] = { nome: p.nome.trim(), corridas: 0, pontos: 0, vitorias: 0, melhor: null };
-      mapa[key].corridas++;
-      mapa[key].pontos += PONTOS_F1[i] || 0;
-      if (i === 0) mapa[key].vitorias++;
-      const volta = parseFloat(p.melhorVolta);
-      if (!isNaN(volta) && (mapa[key].melhor === null || volta < mapa[key].melhor)) mapa[key].melhor = volta;
-    });
-  });
-  return Object.values(mapa)
-    .sort((a, b) => b.pontos - a.pontos || b.vitorias - a.vitorias)
-    .map((p, i) => ({ ...p, pos: i + 1, melhorVolta: p.melhor === null ? '--' : p.melhor.toFixed(1) }));
-}
-
 function Rankings() {
   const [categoria, setCategoria] = useState('open');
+  const [pistaFiltro, setPistaFiltro] = useState('');
   const [, recarregar] = useState(0);
-  // o ranking e publico: busca o historico na API ao abrir a pagina (se a API estiver fora, mostra o exemplo)
-  useEffect(() => { Api.carregarRankingPublico().then(() => recarregar(v => v + 1)).catch(() => {}); }, []);
-  const rankingReal = buildRanking();
-  const temDados = rankingReal.length > 0;
-  const pilotos = temDados ? rankingReal : MOCK_RANKINGS[categoria];
+  // ranking publico: carrega historico e pistas ao abrir (sem API, mostra o exemplo)
+  useEffect(() => { Promise.all([Api.carregarRankingPublico(), Api.carregarPistasPublico()]).then(() => recarregar(v => v + 1)).catch(() => {}); }, []);
+  const temDados = Api.cache.historico.length > 0;
+  const pistasDaCategoria = Api.cache.pistas.filter(p => p.categoria === categoria);
+  const pilotos = temDados ? rankingPorFiltro(Api.cache.historico, Api.cache.pistas, categoria, pistaFiltro) : MOCK_RANKINGS[categoria];
+  const escolherCategoria = (id) => { setCategoria(id); setPistaFiltro(''); };
 
   return (
     <section
@@ -1278,33 +1270,40 @@ function Rankings() {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6 reveal-up">
           <div>
             <h2 className="font-headline-lg text-headline-lg text-on-surface italic uppercase mb-4">
-              Rankings <span className="text-secondary">Globais</span>
+              Rankings por <span className="text-secondary">Categoria</span>
             </h2>
             <div className="h-1 w-24 bg-primary-container skew-x-m10" aria-hidden="true" />
           </div>
 
-          {temDados ? (
-            <span className="flex items-center gap-2 font-label-caps text-label-caps text-secondary text-xs">
-              <span className="material-symbols-outlined text-sm">verified</span>
-              DADOS REAIS · {rankingReal.length} PILOTOS
-            </span>
-          ) : (
-            <div className="flex gap-2">
-              {CATEGORIAS.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setCategoria(cat.id)}
-                  className={`font-label-caps text-label-caps px-5 py-2 skew-x-m10 transition-colors border ${categoria === cat.id
-                    ? 'bg-primary-container text-white border-primary-container'
-                    : 'bg-surface-container text-on-surface-variant border-secondary/20 hover:border-secondary'
-                    }`}
-                >
-                  <span className="inline-block skew-x-10">{cat.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex gap-2">
+            {CATEGORIAS.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => escolherCategoria(cat.id)}
+                className={`font-label-caps text-label-caps px-5 py-2 skew-x-m10 transition-colors border ${categoria === cat.id
+                  ? 'bg-primary-container text-white border-primary-container'
+                  : 'bg-surface-container text-on-surface-variant border-secondary/20 hover:border-secondary'
+                  }`}
+              >
+                <span className="inline-block skew-x-10">{cat.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {temDados && pistasDaCategoria.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <span className="font-label-caps text-label-caps text-on-surface-variant text-xs">PISTA:</span>
+            {[{ id: '', nome: 'TODAS' }, ...pistasDaCategoria].map(p => (
+              <button key={p.id || 'todas'} onClick={() => setPistaFiltro(p.id)}
+                className={`font-label-caps text-label-caps text-xs px-4 py-1.5 border transition-colors ${pistaFiltro === p.id
+                  ? 'border-primary-container text-primary bg-primary-container/10'
+                  : 'border-secondary/20 text-on-surface-variant hover:border-secondary'}`}>
+                {p.nome.toUpperCase()}{p.metros ? ` · ${p.metros} M` : ''}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="bg-surface-container border border-secondary/20 overflow-hidden reveal-up stagger-1">
           {/* cabeçalho */}
@@ -1316,6 +1315,11 @@ function Rankings() {
             <span className="font-label-caps text-label-caps text-on-surface-variant text-right">PTS</span>
           </div>
 
+          {pilotos.length === 0 && (
+            <p className="px-6 py-10 text-center font-body-sm text-body-sm text-on-surface-variant">
+              Nenhuma corrida encerrada nesta {pistaFiltro ? 'pista' : 'categoria'} ainda.
+            </p>
+          )}
           {pilotos.map((piloto, i) => (
             <div
               key={piloto.pos}
@@ -1338,7 +1342,7 @@ function Rankings() {
               </span>
 
               <span className="font-label-data text-label-data text-secondary shimmer-text text-right hidden sm:block">
-                {piloto.melhorVolta}s
+                {temDados ? formatarVolta(piloto.melhorVolta) : `${piloto.melhorVolta}s`}
               </span>
 
               <span className="font-label-data text-label-data text-on-surface-variant text-right hidden md:block">
@@ -1354,7 +1358,7 @@ function Rankings() {
 
         <p className="text-center font-body-sm text-body-sm text-on-surface-variant/50 mt-6 reveal-up">
           {temDados
-            ? 'Ranking gerado a partir das corridas registradas no sistema.'
+            ? 'Pontos por posição de chegada, separados por categoria e por pista. A melhor volta só aparece ao escolher uma pista, porque o tempo só é comparável na mesma pista.'
             : 'Dados ilustrativos. O ranking real será gerado após as primeiras corridas.'}
         </p>
       </div>

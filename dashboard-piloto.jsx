@@ -616,6 +616,12 @@ function Agendar({ onConfirmado }) {
 function MinhasCorridas() {
   const [reservas, setReservas] = useState([]);
   const [pendCancel, setPendCancel] = useState(null);
+  const [remarcando, setRemarcando] = useState(null);
+
+  const remarcar = async () => {
+    try { await Api.remarcarReserva(remarcando.id, remarcando.data, remarcando.hora); } catch (e) { apiErro(e); return; }
+    setRemarcando(null); reload();
+  };
 
   const reload = () => {
     const minhas = reservas_do_piloto(usuario.id);
@@ -650,7 +656,7 @@ function MinhasCorridas() {
       <div className="mb-8 border-l-4 border-primary pl-4">
         <h1 className="font-headline-lg text-headline-lg text-on-surface uppercase tracking-tight">Minhas Corridas</h1>
         <p className="font-body-md text-body-md text-on-surface-variant mt-2">
-          Agendamentos futuros. Você pode cancelar até o dia da corrida.
+          Agendamentos futuros. Você pode remarcar ou cancelar até o dia da corrida.
         </p>
       </div>
 
@@ -681,8 +687,32 @@ function MinhasCorridas() {
                     <p className="font-label-caps text-xs text-tertiary mt-2">Agendado para: {r.nome}</p>
                   )}
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  {pendCancel === r.id ? (
+                <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+                  {remarcando && remarcando.id === r.id ? (
+                    <>
+                      <input type="date" min={HOJE} value={remarcando.data}
+                        onChange={e => setRemarcando(p => ({ ...p, data: e.target.value, hora: '' }))}
+                        className="bg-surface border border-outline-variant/30 text-on-surface px-3 py-2 text-sm" />
+                      <select value={remarcando.hora} onChange={e => setRemarcando(p => ({ ...p, hora: e.target.value }))}
+                        className="bg-surface border border-outline-variant/30 text-on-surface px-3 py-2 text-sm">
+                        <option value="">Horário</option>
+                        {remarcando.data && getHorariosDia(remarcando.data).map(hr => {
+                          const passado = remarcando.data === HOJE && hr <= new Date().toTimeString().slice(0, 5);
+                          const pista = PISTAS.find(p => p.id === remarcando.pistaId);
+                          const cheio = pista && reservas_do_slot(remarcando.data, hr, remarcando.pistaId).length >= pista.capacidade;
+                          return <option key={hr} value={hr} disabled={passado || cheio}>{hr}{passado ? ' (passou)' : cheio ? ' (lotado)' : ''}</option>;
+                        })}
+                      </select>
+                      <button onClick={remarcar} disabled={!remarcando.data || !remarcando.hora}
+                        className="font-label-caps text-xs text-primary border border-primary/40 px-3 py-2 hover:bg-primary/10 transition-colors disabled:opacity-40">
+                        SALVAR
+                      </button>
+                      <button onClick={() => setRemarcando(null)}
+                        className="font-label-caps text-xs text-on-surface-variant border border-outline-variant/30 px-3 py-2 hover:bg-surface transition-colors">
+                        VOLTAR
+                      </button>
+                    </>
+                  ) : pendCancel === r.id ? (
                     <>
                       <button onClick={() => cancelar(r.id)}
                         className="font-label-caps text-xs text-error border border-error/40 px-3 py-2 hover:bg-error/10 transition-colors">
@@ -694,11 +724,18 @@ function MinhasCorridas() {
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => setPendCancel(r.id)}
-                      className="font-label-caps text-xs text-error border border-error/30 px-3 py-2 hover:bg-error/10 transition-colors flex items-center gap-1">
-                      <span className="material-symbols-outlined text-base">cancel</span>
-                      CANCELAR
-                    </button>
+                    <>
+                      <button onClick={() => setRemarcando({ id: r.id, pistaId: r.pistaId, data: h.data, hora: h.hora })}
+                        className="font-label-caps text-xs text-primary border border-primary/30 px-3 py-2 hover:bg-primary/10 transition-colors flex items-center gap-1">
+                        <span className="material-symbols-outlined text-base">event_repeat</span>
+                        REMARCAR
+                      </button>
+                      <button onClick={() => setPendCancel(r.id)}
+                        className="font-label-caps text-xs text-error border border-error/30 px-3 py-2 hover:bg-error/10 transition-colors flex items-center gap-1">
+                        <span className="material-symbols-outlined text-base">cancel</span>
+                        CANCELAR
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -818,6 +855,13 @@ function Perfil() {
   const [salvo, setSalvo] = useState(false);
   const [filhos, setFilhos] = useState(() => filhos_listar());
   const [showAddFilho, setShowAddFilho] = useState(false);
+  const maiorDeIdade = (() => {
+    if (!usuarioAtual?.nascimento) return false;
+    const hoje = new Date(), n = new Date(usuarioAtual.nascimento + 'T12:00:00');
+    let idade = hoje.getFullYear() - n.getFullYear();
+    if (hoje < new Date(hoje.getFullYear(), n.getMonth(), n.getDate())) idade--;
+    return idade >= 18;
+  })();
   const [formFilho, setFormFilho] = useState({ nome: '', nascimento: '', categoria: '', peso: '', altura: '' });
   const [pendDelFilho, setPendDelFilho] = useState(null);
   const [editFilho, setEditFilho] = useState(null); // id do dependente em edicao
@@ -960,11 +1004,15 @@ function Perfil() {
             <span className="material-symbols-outlined text-secondary">child_care</span>
             Dependentes / Filhos
           </h2>
-          <button onClick={() => { setShowAddFilho(v => !v); setEditFilho(null); setFormFilho(novoFilho); }}
-            className="flex items-center gap-2 font-label-caps text-xs border px-4 py-2 transition-colors bg-primary-container text-white hover:bg-primary">
-            <span className="material-symbols-outlined text-base">{showAddFilho ? 'close' : 'person_add'}</span>
-            {showAddFilho ? 'CANCELAR' : 'ADICIONAR'}
-          </button>
+          {maiorDeIdade ? (
+            <button onClick={() => { setShowAddFilho(v => !v); setEditFilho(null); setFormFilho(novoFilho); }}
+              className="flex items-center gap-2 font-label-caps text-xs border px-4 py-2 transition-colors bg-primary-container text-white hover:bg-primary">
+              <span className="material-symbols-outlined text-base">{showAddFilho ? 'close' : 'person_add'}</span>
+              {showAddFilho ? 'CANCELAR' : 'ADICIONAR'}
+            </button>
+          ) : (
+            <span className="font-label-caps text-xs text-on-surface-variant">SOMENTE PARA MAIORES DE 18 ANOS</span>
+          )}
         </div>
 
         {showAddFilho && (

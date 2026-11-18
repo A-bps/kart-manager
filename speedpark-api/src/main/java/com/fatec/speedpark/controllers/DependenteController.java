@@ -38,6 +38,17 @@ public class DependenteController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.criar(request, auth));
     }
 
+    @GetMapping("/cliente/{codigo}")
+    public ResponseEntity<List<DependenteView>> listarDoCliente(@PathVariable Integer codigo, Authentication auth) {
+        return ResponseEntity.ok(service.listarDoCliente(codigo, auth));
+    }
+
+    @PostMapping("/cliente/{codigo}")
+    public ResponseEntity<DependenteView> criarParaCliente(@PathVariable Integer codigo,
+            @Valid @RequestBody DependenteRequest request, Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.criarParaCliente(codigo, request, auth));
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<DependenteView> atualizar(@PathVariable Integer id, @Valid @RequestBody DependenteRequest request,
             Authentication auth) {

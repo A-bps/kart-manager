@@ -1,5 +1,7 @@
 package com.fatec.speedpark.services;
 
+import java.time.LocalDate;
+import java.time.Period;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -31,9 +33,35 @@ public class DependenteService {
                 .map(DependenteView::de).toList();
     }
 
+    public List<DependenteView> listarDoCliente(Integer clienteCodigo, Authentication auth) {
+        exigirAdmin(auth);
+        return repository.findByResponsavel_PessoaCodigoOrderByIdAsc(clienteCodigo).stream().map(DependenteView::de).toList();
+    }
+
+    public DependenteView criarParaCliente(Integer clienteCodigo, DependenteRequest r, Authentication auth) {
+        exigirAdmin(auth);
+        Cliente responsavel = clienteRepository.findById(clienteCodigo)
+                .orElseThrow(() -> new NoSuchElementException("Cliente não encontrado: " + clienteCodigo));
+        return salvarNovo(responsavel, r);
+    }
+
+    private void exigirAdmin(Authentication auth) {
+        if (!TokenService.ehAdmin(auth)) {
+            throw new AccessDeniedException("Apenas o administrador pode fazer isso.");
+        }
+    }
+
     public DependenteView criar(DependenteRequest r, Authentication auth) {
         Cliente responsavel = clienteRepository.findById(TokenService.codigo(auth))
                 .orElseThrow(() -> new AccessDeniedException("Apenas pilotos cadastrados têm dependentes."));
+        return salvarNovo(responsavel, r);
+    }
+
+    private DependenteView salvarNovo(Cliente responsavel, DependenteRequest r) {
+        LocalDate nasc = responsavel.getDataNascimento();
+        if (nasc == null || Period.between(nasc, LocalDate.now()).getYears() < 18) {
+            throw new IllegalArgumentException("Apenas clientes com 18 anos ou mais podem ter dependentes.");
+        }
         Dependente d = new Dependente();
         d.setResponsavel(responsavel);
         d.setNome(r.nome().trim());
@@ -61,7 +89,7 @@ public class DependenteService {
     private Dependente buscarDoPiloto(Integer id, Authentication auth) {
         Dependente d = repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Dependente não encontrado: " + id));
-        if (!d.getResponsavel().getPessoaCodigo().equals(TokenService.codigo(auth))) {
+        if (!TokenService.ehAdmin(auth) && !d.getResponsavel().getPessoaCodigo().equals(TokenService.codigo(auth))) {
             throw new AccessDeniedException("Este dependente pertence a outro piloto.");
         }
         return d;

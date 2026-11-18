@@ -1,5 +1,6 @@
 package com.fatec.speedpark.services;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -16,6 +17,7 @@ import com.fatec.speedpark.entities.Resultado;
 import com.fatec.speedpark.exceptions.ConflitoException;
 import com.fatec.speedpark.repositories.PistaRepository;
 import com.fatec.speedpark.repositories.ProvaRepository;
+import com.fatec.speedpark.repositories.ReservaRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +27,7 @@ public class ProvaService {
 
     private final ProvaRepository repository;
     private final PistaRepository pistaRepository;
+    private final ReservaRepository reservaRepository;
 
     @Transactional(readOnly = true)
     public List<ProvaView> listarAtivas() {
@@ -64,6 +67,11 @@ public class ProvaService {
         preencher(prova, resultado);
         prova.setStatus(Prova.ENCERRADA);
         prova.setEncerradaEm(LocalDateTime.now());
+        // a reserva de quem correu sai da agenda (sem estorno)
+        for (PosicaoRequest p : resultado) {
+            reservaRepository.findFirstByPistaAndDataAndParticipanteIgnoreCaseOrderByHorarioAsc(
+                    prova.getPista(), LocalDate.now(), p.nome().trim()).ifPresent(reservaRepository::delete);
+        }
         return ProvaView.de(repository.save(prova));
     }
 

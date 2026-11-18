@@ -42,7 +42,7 @@ const Api = (() => {
 
   // --- adaptadores: formato da API -> formato que as telas ja usam ---
   const dePiloto = p => ({ ...p, nascimento: p.nascimento || '', altura: p.altura ?? '', peso: p.peso ?? '' });
-  const deKart = k => ({ id: k.codigo, numero: k.numero, status: k.estado });
+  const deKart = k => ({ id: k.codigo, numero: k.numero, status: k.estado, motivo: k.historico || '' });
   const deLancamento = f => ({ ...f, valor: Number(f.valor) });
   // as telas usam o codigo da pista (pista1, pista2...) como id
   const dePista = p => ({ id: p.codigo, nr: p.nr, nome: p.nome, capacidade: p.capacidade, metros: p.metros, categoria: p.categoria, precoPorMin: Number(p.precoPorMin), precoPorVolta: Number(p.precoPorVolta) });
@@ -91,11 +91,14 @@ const Api = (() => {
 
     // --- frota ---
     async adicionarKart(numero) { await req('POST', '/karts', { numero: Number(numero), estado: 'pronto' }); await carregarFrota(); },
-    async statusKart(id, status) {
+    async statusKart(id, status, extra = {}) {
       const atual = cache.frota.find(k => k.id === id);
       // colocar em manutencao registra a manutencao (procedure do banco), que ja muda o estado do kart
       if (status === 'manutencao' && atual && atual.status !== 'manutencao') {
-        await req('POST', '/manutencoes', { status: 'aberta', valor: 0, kartCodigo: id });
+        await req('POST', '/manutencoes', {
+          status: 'aberta', valor: Number(extra.valor) || 0, formaPagamento: extra.formaPagamento || null,
+          kartCodigo: id, motivo: extra.motivo || null,
+        });
         return carregarFrota();
       }
       await req('PUT', `/karts/${id}`, { numero: atual && atual.numero, estado: status });
@@ -123,6 +126,12 @@ const Api = (() => {
     async adicionarDependente(dados) { await req('POST', '/dependentes', dados); await carregarDependentes(); },
     async editarDependente(id, dados) { await req('PUT', `/dependentes/${id}`, dados); await carregarDependentes(); },
     async removerDependente(id) { await req('DELETE', `/dependentes/${id}`); await carregarDependentes(); },
+
+    // --- dependentes (admin) ---
+    dependentesDoCliente(codigo) { return req('GET', `/dependentes/cliente/${codigo}`); },
+    adicionarDependenteDoCliente(codigo, dados) { return req('POST', `/dependentes/cliente/${codigo}`, dados); },
+    editarDependenteAdmin(id, dados) { return req('PUT', `/dependentes/${id}`, dados); },
+    removerDependenteAdmin(id) { return req('DELETE', `/dependentes/${id}`); },
 
     // --- relatorios do admin (views, function e logs de triggers do banco) ---
     async relatorio(caminho) { return req('GET', `/relatorios/${caminho}`); },
