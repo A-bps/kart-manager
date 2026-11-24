@@ -1,4 +1,4 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // === auth ===
 function auth_getSession() {
@@ -214,11 +214,83 @@ function Sidebar({ activeTab, onTabChange, isOpen, onClose, novosAgendamentos })
 }
 
 // === topbar ===
-function TopBar({ onMenuToggle, novosAgendamentos, onVerAgenda }) {
+function TopBar({ onMenuToggle, novosAgendamentos, onVerAgenda, onNavegar }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [busca, setBusca] = useState('');
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const buscaRef = useRef(null);
   const novas = notif_reservas_novas();
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em' };
+
+  useEffect(() => {
+    const fechar = (e) => {
+      if (buscaRef.current && !buscaRef.current.contains(e.target)) setBuscaAberta(false);
+    };
+    document.addEventListener('mousedown', fechar);
+    return () => document.removeEventListener('mousedown', fechar);
+  }, []);
+
+  const resultadosBusca = (() => {
+    const termo = busca.trim();
+    if (!termo) return [];
+    const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const q = norm(termo);
+    const itens = [];
+
+    pilotos_listar()
+      .filter(p => norm(p.nome).includes(q) || norm(p.email).includes(q) || norm(p.telefone).includes(q))
+      .slice(0, 4)
+      .forEach(p => itens.push({
+        chave: `piloto-${p.id}`, grupo: 'PILOTO', icone: 'person',
+        titulo: p.nome, subtitulo: p.email || p.telefone || '',
+        tab: 'clientes', ctx: { busca: p.nome, nonce: Date.now() },
+      }));
+
+    frota_listar()
+      .filter(k => norm(`kart #${k.numero}`).includes(q) || String(k.numero).includes(q) || norm(k.status).includes(q) || norm(k.motivo).includes(q))
+      .slice(0, 4)
+      .forEach(k => {
+        const st = k.status === 'manutencao' ? 'Manutenção' : k.status === 'pronto' ? 'Pronto' : k.status;
+        itens.push({
+          chave: `kart-${k.id}`, grupo: 'FROTA', icone: 'directions_car',
+          titulo: `Kart #${k.numero}`, subtitulo: st + (k.motivo ? ` · ${k.motivo}` : ''),
+          tab: 'frota', ctx: null,
+        });
+      });
+
+    reservas_listar()
+      .filter(r => {
+        const pistaNome = PISTAS.find(p => p.id === r.pistaId)?.nome || r.pistaId;
+        return norm(r.nome).includes(q) || norm(pistaNome).includes(q) || String(r.data).includes(q) || String(r.hora).includes(q);
+      })
+      .slice(0, 4)
+      .forEach(r => {
+        const pistaNome = PISTAS.find(p => p.id === r.pistaId)?.nome || r.pistaId;
+        itens.push({
+          chave: `reserva-${r.id}`, grupo: 'AGENDA', icone: 'calendar_month',
+          titulo: r.nome, subtitulo: `${new Date(r.data + 'T12:00:00').toLocaleDateString('pt-BR')} · ${r.hora} · ${pistaNome}`,
+          tab: 'agenda', ctx: { data: r.data, nonce: Date.now() },
+        });
+      });
+
+    [...corridas_listar().map(c => ({ ...c, _ativa: true })), ...historico_listar().map(c => ({ ...c, _ativa: false }))]
+      .filter(c => norm(`corrida #${c.numero}`).includes(q) || norm(c.pistaNome || c.pistaId).includes(q) || (c.posicoes || []).some(p => norm(p.nome).includes(q)))
+      .slice(0, 4)
+      .forEach(c => itens.push({
+        chave: `corrida-${c._ativa ? 'a' : 'h'}-${c.id}`, grupo: 'CORRIDA', icone: 'flag',
+        titulo: `Corrida #${c.numero} · ${c.pistaNome || c.pistaId || ''}`,
+        subtitulo: `${c._ativa ? 'Em andamento' : 'Encerrada'} · ${(c.posicoes || []).length} piloto(s)`,
+        tab: c._ativa ? 'painel' : 'classificacao', ctx: null,
+      }));
+
+    return itens;
+  })();
+
+  const selecionarResultado = (item) => {
+    onNavegar(item.tab, item.ctx);
+    setBusca('');
+    setBuscaAberta(false);
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant/20 bg-surface-container-low px-4 lg:px-6">
@@ -228,11 +300,56 @@ function TopBar({ onMenuToggle, novosAgendamentos, onVerAgenda }) {
           onClick={onMenuToggle}>
           <span className="material-symbols-outlined text-xl">menu</span>
         </button>
-        <div className="relative max-w-sm flex-1">
+        <div ref={buscaRef} className="relative max-w-sm flex-1">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-on-surface-variant">search</span>
           <input type="text" placeholder="Pesquisar corridas, pilotos ou karts..."
-            value={busca} onChange={e => setBusca(e.target.value)}
-            className="w-full border border-outline-variant/20 bg-surface-container py-2 pl-9 pr-4 text-sm text-on-surface-variant placeholder-on-surface-variant/50 focus:border-primary/50 focus:outline-none transition-colors" />
+            value={busca}
+            onFocus={() => setBuscaAberta(true)}
+            onKeyDown={e => {
+              if (e.key === 'Escape') setBuscaAberta(false);
+              if (e.key === 'Enter' && resultadosBusca.length > 0) selecionarResultado(resultadosBusca[0]);
+            }}
+            onChange={e => { setBusca(e.target.value); setBuscaAberta(true); }}
+            className="w-full border border-outline-variant/20 bg-surface-container py-2 pl-9 pr-8 text-sm text-on-surface placeholder-on-surface-variant/50 focus:border-primary/50 focus:outline-none transition-colors" />
+          {busca && (
+            <button onClick={() => setBusca('')} title="Limpar busca"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface">
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          )}
+          {buscaAberta && busca.trim().length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto border border-outline-variant/30 bg-surface-container shadow-xl">
+              {resultadosBusca.length === 0 ? (
+                <div className="flex items-center gap-2 px-4 py-4 text-on-surface-variant">
+                  <span className="material-symbols-outlined text-lg">search_off</span>
+                  <span style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>
+                    Nenhum resultado para "{busca.trim()}"
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col divide-y divide-outline-variant/10">
+                  {resultadosBusca.map(item => (
+                    <button key={item.chave} onClick={() => selecionarResultado(item)}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-container-high">
+                      <span className="material-symbols-outlined text-lg text-secondary flex-shrink-0">{item.icone}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px', fontWeight: '600' }}>
+                          {item.titulo}
+                        </p>
+                        <p className="truncate text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>
+                          {item.subtitulo}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 border border-secondary/30 px-1.5 py-0.5 text-secondary"
+                        style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '9px', fontWeight: '700', letterSpacing: '0.08em' }}>
+                        {item.grupo}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-3 relative">
@@ -839,8 +956,11 @@ function PainelPrincipal({ onTabChange }) {
 }
 
 // === agenda ===
-function Agenda() {
-  const [dataAtiva, setDataAtiva] = useState(hoje);
+function Agenda({ dataInicial }) {
+  const [dataAtiva, setDataAtiva] = useState(dataInicial?.data || hoje);
+  useEffect(() => {
+    if (dataInicial?.data) { setDataAtiva(dataInicial.data); setSlotAberto(null); }
+  }, [dataInicial]);
   const [slotAberto, setSlotAberto] = useState(null);
   const [formNome, setFormNome] = useState('');
   const [formNasc, setFormNasc] = useState('');
@@ -1308,6 +1428,9 @@ function Financeiro() {
   const [comprovante, setComprovante] = useState(null);
   const [form, setForm] = useState({ valor: '', descricao: '', formaPagamento: 'pix', status: 'pago' });
   const reload = () => setRegistros(fat_listar());
+  useEffect(() => {
+    Api.recarregarFaturamento().then(reload).catch(() => {});
+  }, []);
 
   const acao = async (fn) => { try { await fn(); } catch (e) { apiErro(e); } reload(); };
 
@@ -1740,10 +1863,13 @@ function DependentesModal({ piloto, onClose }) {
   );
 }
 
-function Clientes() {
+function Clientes({ buscaInicial }) {
   const [pilotos, setPilotos] = useState(pilotos_listar);
   const [dependentesDe, setDependentesDe] = useState(null);
-  const [busca, setBusca] = useState('');
+  const [busca, setBusca] = useState(buscaInicial?.busca || '');
+  useEffect(() => {
+    if (buscaInicial?.busca !== undefined) setBusca(buscaInicial.busca);
+  }, [buscaInicial]);
   const [pendDelete, setPendDelete] = useState(null);
   const [showCadastro, setShowCadastro] = useState(false);
   const [sucesso, setSucesso] = useState(null); // { nome, senha }
@@ -2384,11 +2510,13 @@ function Cadastros() {
 // === app ===
 function DashboardAdmin() {
   const [activeTab, setActiveTab] = useState('painel');
+  const [navCtx, setNavCtx] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [novosAgendamentos, setNovosAgendamentos] = useState(() => notif_reservas_novas().length);
 
-  const handleTabChange = (tab) => {
+  const handleTabChange = (tab, ctx = null) => {
     if (tab === 'agenda') { notif_marcar_visto(); setNovosAgendamentos(0); }
+    setNavCtx(ctx);
     setActiveTab(tab);
     setSidebarOpen(false);
   };
@@ -2396,8 +2524,8 @@ function DashboardAdmin() {
   const renderContent = () => {
     switch (activeTab) {
       case 'painel': return <PainelPrincipal onTabChange={handleTabChange} />;
-      case 'agenda': return <Agenda />;
-      case 'clientes': return <Clientes />;
+      case 'agenda': return <Agenda dataInicial={navCtx?.data ? navCtx : null} />;
+      case 'clientes': return <Clientes buscaInicial={navCtx?.busca !== undefined ? navCtx : null} />;
       case 'frota': return <Frota />;
       case 'financeiro': return <Financeiro />;
       case 'classificacao': return <Classificacao />;
@@ -2421,6 +2549,7 @@ function DashboardAdmin() {
           onMenuToggle={() => setSidebarOpen(o => !o)}
           novosAgendamentos={novosAgendamentos}
           onVerAgenda={() => handleTabChange('agenda')}
+          onNavegar={handleTabChange}
         />
         <main className="flex-1 overflow-auto p-4 lg:p-6">{renderContent()}</main>
       </div>
