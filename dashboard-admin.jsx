@@ -1,4 +1,4 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // === auth ===
 function auth_getSession() {
@@ -50,6 +50,17 @@ function calcCategoria(nascimento) {
   if (idade < 7) return 'kids';
   return idade <= 13 ? 'junior' : 'open';
 }
+
+const rotuloCat = c => (c || '').toUpperCase();
+const catDaPista = id => rotuloCat((PISTAS.find(p => p.id === id) || {}).categoria);
+const dataMenos = (anos, dias = 0) => { const d = new Date(); d.setFullYear(d.getFullYear() - anos); d.setDate(d.getDate() + dias); return d.toLocaleDateString('sv-SE'); };
+// nascimentos aceitos em cada categoria (mesma regra de fc_CategoriaPorIdade)
+function limitesNasc(cat) {
+  if (cat === 'kids') return { min: dataMenos(7, 1), max: dataMenos(0) };
+  if (cat === 'junior') return { min: dataMenos(14, 1), max: dataMenos(7) };
+  return { max: dataMenos(14) };
+}
+const FAIXA_CAT = { kids: 'menos de 7 anos', junior: 'de 7 a 13 anos', open: '14 anos ou mais' };
 
 // === reservas ===
 function reservas_listar() { return Api.cache.reservas; }
@@ -214,11 +225,83 @@ function Sidebar({ activeTab, onTabChange, isOpen, onClose, novosAgendamentos })
 }
 
 // === topbar ===
-function TopBar({ onMenuToggle, novosAgendamentos, onVerAgenda }) {
+function TopBar({ onMenuToggle, novosAgendamentos, onVerAgenda, onNavegar }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [busca, setBusca] = useState('');
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const buscaRef = useRef(null);
   const novas = notif_reservas_novas();
   const lbl = { fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em' };
+
+  useEffect(() => {
+    const fechar = (e) => {
+      if (buscaRef.current && !buscaRef.current.contains(e.target)) setBuscaAberta(false);
+    };
+    document.addEventListener('mousedown', fechar);
+    return () => document.removeEventListener('mousedown', fechar);
+  }, []);
+
+  const resultadosBusca = (() => {
+    const termo = busca.trim();
+    if (!termo) return [];
+    const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const q = norm(termo);
+    const itens = [];
+
+    pilotos_listar()
+      .filter(p => norm(p.nome).includes(q) || norm(p.email).includes(q) || norm(p.telefone).includes(q))
+      .slice(0, 4)
+      .forEach(p => itens.push({
+        chave: `piloto-${p.id}`, grupo: 'PILOTO', icone: 'person',
+        titulo: p.nome, subtitulo: p.email || p.telefone || '',
+        tab: 'clientes', ctx: { busca: p.nome, nonce: Date.now() },
+      }));
+
+    frota_listar()
+      .filter(k => norm(`kart #${k.numero}`).includes(q) || String(k.numero).includes(q) || norm(k.status).includes(q) || norm(k.motivo).includes(q))
+      .slice(0, 4)
+      .forEach(k => {
+        const st = k.status === 'manutencao' ? 'Manutenção' : k.status === 'pronto' ? 'Pronto' : k.status;
+        itens.push({
+          chave: `kart-${k.id}`, grupo: 'FROTA', icone: 'directions_car',
+          titulo: `Kart #${k.numero}`, subtitulo: st + (k.motivo ? ` · ${k.motivo}` : ''),
+          tab: 'frota', ctx: null,
+        });
+      });
+
+    reservas_listar()
+      .filter(r => {
+        const pistaNome = PISTAS.find(p => p.id === r.pistaId)?.nome || r.pistaId;
+        return norm(r.nome).includes(q) || norm(pistaNome).includes(q) || String(r.data).includes(q) || String(r.hora).includes(q);
+      })
+      .slice(0, 4)
+      .forEach(r => {
+        const pistaNome = PISTAS.find(p => p.id === r.pistaId)?.nome || r.pistaId;
+        itens.push({
+          chave: `reserva-${r.id}`, grupo: 'AGENDA', icone: 'calendar_month',
+          titulo: r.nome, subtitulo: `${new Date(r.data + 'T12:00:00').toLocaleDateString('pt-BR')} · ${r.hora} · ${pistaNome}`,
+          tab: 'agenda', ctx: { data: r.data, nonce: Date.now() },
+        });
+      });
+
+    [...corridas_listar().map(c => ({ ...c, _ativa: true })), ...historico_listar().map(c => ({ ...c, _ativa: false }))]
+      .filter(c => norm(`corrida #${c.numero}`).includes(q) || norm(c.pistaNome || c.pistaId).includes(q) || (c.posicoes || []).some(p => norm(p.nome).includes(q)))
+      .slice(0, 4)
+      .forEach(c => itens.push({
+        chave: `corrida-${c._ativa ? 'a' : 'h'}-${c.id}`, grupo: 'CORRIDA', icone: 'flag',
+        titulo: `Corrida #${c.numero} · ${c.pistaNome || c.pistaId || ''}`,
+        subtitulo: `${c._ativa ? 'Em andamento' : 'Encerrada'} · ${(c.posicoes || []).length} piloto(s)`,
+        tab: c._ativa ? 'painel' : 'classificacao', ctx: null,
+      }));
+
+    return itens;
+  })();
+
+  const selecionarResultado = (item) => {
+    onNavegar(item.tab, item.ctx);
+    setBusca('');
+    setBuscaAberta(false);
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-outline-variant/20 bg-surface-container-low px-4 lg:px-6">
@@ -228,11 +311,56 @@ function TopBar({ onMenuToggle, novosAgendamentos, onVerAgenda }) {
           onClick={onMenuToggle}>
           <span className="material-symbols-outlined text-xl">menu</span>
         </button>
-        <div className="relative max-w-sm flex-1">
+        <div ref={buscaRef} className="relative max-w-sm flex-1">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-on-surface-variant">search</span>
           <input type="text" placeholder="Pesquisar corridas, pilotos ou karts..."
-            value={busca} onChange={e => setBusca(e.target.value)}
-            className="w-full border border-outline-variant/20 bg-surface-container py-2 pl-9 pr-4 text-sm text-on-surface-variant placeholder-on-surface-variant/50 focus:border-primary/50 focus:outline-none transition-colors" />
+            value={busca}
+            onFocus={() => setBuscaAberta(true)}
+            onKeyDown={e => {
+              if (e.key === 'Escape') setBuscaAberta(false);
+              if (e.key === 'Enter' && resultadosBusca.length > 0) selecionarResultado(resultadosBusca[0]);
+            }}
+            onChange={e => { setBusca(e.target.value); setBuscaAberta(true); }}
+            className="w-full border border-outline-variant/20 bg-surface-container py-2 pl-9 pr-8 text-sm text-on-surface placeholder-on-surface-variant/50 focus:border-primary/50 focus:outline-none transition-colors" />
+          {busca && (
+            <button onClick={() => setBusca('')} title="Limpar busca"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface">
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          )}
+          {buscaAberta && busca.trim().length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto border border-outline-variant/30 bg-surface-container shadow-xl">
+              {resultadosBusca.length === 0 ? (
+                <div className="flex items-center gap-2 px-4 py-4 text-on-surface-variant">
+                  <span className="material-symbols-outlined text-lg">search_off</span>
+                  <span style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>
+                    Nenhum resultado para "{busca.trim()}"
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col divide-y divide-outline-variant/10">
+                  {resultadosBusca.map(item => (
+                    <button key={item.chave} onClick={() => selecionarResultado(item)}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface-container-high">
+                      <span className="material-symbols-outlined text-lg text-secondary flex-shrink-0">{item.icone}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px', fontWeight: '600' }}>
+                          {item.titulo}
+                        </p>
+                        <p className="truncate text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>
+                          {item.subtitulo}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 border border-secondary/30 px-1.5 py-0.5 text-secondary"
+                        style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '9px', fontWeight: '700', letterSpacing: '0.08em' }}>
+                        {item.grupo}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-3 relative">
@@ -397,7 +525,7 @@ function IniciarCorridaModal({ onClose, onIniciada, pilotos: pilotsInicial, pist
             <option value="" disabled>Selecione a pista</option>
             {PISTAS.map(p => {
               const ocupada = corrida_pista_ocupada(p.id);
-              return <option key={p.id} value={p.id} disabled={ocupada}>{p.nome}{ocupada ? ' — em uso' : ''}</option>;
+              return <option key={p.id} value={p.id} disabled={ocupada}>{p.nome} · {rotuloCat(p.categoria)}{ocupada ? ' — em uso' : ''}</option>;
             })}
           </select>
         </div>
@@ -693,7 +821,7 @@ function PainelPrincipal({ onTabChange }) {
                 <div key={c.id} className="flex flex-col gap-3 p-5">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>{c.pistaNome?.toUpperCase() || c.pistaId?.toUpperCase()} · CORRIDA #{c.numero}</p>
+                      <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em' }}>{c.pistaNome?.toUpperCase() || c.pistaId?.toUpperCase()} · {catDaPista(c.pistaId)} · CORRIDA #{c.numero}</p>
                       <p className="mt-0.5 font-bold text-on-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>
                         {c.posicoes[0] ? `Líder: #${c.posicoes[0].kart} ${c.posicoes[0].nome}` : '--'}
                       </p>
@@ -803,7 +931,7 @@ function PainelPrincipal({ onTabChange }) {
                 <div key={`${hora}-${pista.id}`} className="flex flex-col gap-2 px-5 py-4">
                   <div className="flex items-center gap-3">
                     <span className="text-primary" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '13px', fontWeight: '700' }}>{hora}</span>
-                    <span className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em' }}>{pista.nome.toUpperCase()}</span>
+                    <span className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em' }}>{pista.nome.toUpperCase()} · {rotuloCat(pista.categoria)}</span>
                     <span className="ml-auto border border-secondary/30 px-2 py-0.5 text-secondary" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>
                       {pilotos.length} piloto{pilotos.length !== 1 ? 's' : ''}
                     </span>
@@ -839,10 +967,15 @@ function PainelPrincipal({ onTabChange }) {
 }
 
 // === agenda ===
-function Agenda() {
-  const [dataAtiva, setDataAtiva] = useState(hoje);
+function Agenda({ dataInicial }) {
+  const [dataAtiva, setDataAtiva] = useState(dataInicial?.data || hoje);
+  useEffect(() => {
+    if (dataInicial?.data) { setDataAtiva(dataInicial.data); setSlotAberto(null); }
+  }, [dataInicial]);
   const [slotAberto, setSlotAberto] = useState(null);
   const [formNome, setFormNome] = useState('');
+  const [pendRemover, setPendRemover] = useState(null);
+  const [erroAdd, setErroAdd] = useState('');
   const [formNasc, setFormNasc] = useState('');
   const [formFormato, setFormFormato] = useState('tempo'); // vazio = cortesia
   const [formQtd, setFormQtd] = useState(10);
@@ -865,20 +998,25 @@ function Agenda() {
 
   const toggleSlot = (hora, pistaId) => {
     setSlotAberto(s => s === slotKey(hora, pistaId) ? null : slotKey(hora, pistaId));
-    setFormNome(''); setFormNasc(''); mudarFormato('tempo'); setFormPag('dinheiro');
+    setFormNome(''); setFormNasc(''); setErroAdd(''); mudarFormato('tempo'); setFormPag('dinheiro');
   };
 
   // piloto ja cadastrado: preenche o nascimento sozinho
   const mudarNome = (nome) => {
-    setFormNome(nome);
+    setFormNome(nome); setErroAdd('');
     const p = pilotosCadastrados.find(x => x.nome.toLowerCase() === nome.trim().toLowerCase());
     if (p && p.nascimento) setFormNasc(p.nascimento);
   };
 
   const addPiloto = async (hora, pistaId) => {
     if (!formNome.trim()) return;
-    if (!formNasc) { alert('Informe a data de nascimento: cada pista aceita só a categoria da idade do piloto.'); return; }
+    if (!formNasc) { setErroAdd('Informe a data de nascimento: cada pista aceita só a categoria da idade do piloto.'); return; }
     const pista = PISTAS.find(p => p.id === pistaId);
+    const catNasc = calcCategoria(formNasc);
+    if (catNasc !== pista.categoria) {
+      setErroAdd(`Esse nascimento é da categoria ${rotuloCat(catNasc)}. Esta pista é ${rotuloCat(pista.categoria)} (${FAIXA_CAT[pista.categoria]}).`);
+      return;
+    }
     if (reservas_do_slot(dataAtiva, hora, pistaId).length >= pista.capacidade) return;
     try {
       const cobranca = formFormato ? { formato: formFormato, qtd: formQtd, formaPagamento: formPag } : {};
@@ -890,6 +1028,7 @@ function Agenda() {
 
   const removePiloto = async (id) => {
     try { await reservas_remover(id); } catch (e) { apiErro(e); }
+    setPendRemover(null);
     reload();
   };
 
@@ -957,6 +1096,7 @@ function Agenda() {
         {PISTAS.map(pista => (
           <div key={pista.id} className="bg-surface-container border border-outline-variant/20 px-4 py-3 text-center">
             <p className="text-on-surface font-bold italic" style={{ fontFamily: 'Anybody,sans-serif', fontSize: '15px' }}>{pista.nome}</p>
+            <p className="mt-1 text-secondary" style={lbl}>{rotuloCat(pista.categoria)}</p>
             <p className="text-on-surface-variant mt-0.5" style={lbl}>{pista.metros}m · CAP. {pista.capacidade}</p>
           </div>
         ))}
@@ -989,12 +1129,13 @@ function Agenda() {
                 const pct = Math.round(ocup / cap * 100);
                 const aberto = isAberto(hora, pista.id);
                 const barColor = cheio ? 'bg-error' : pct > 70 ? 'bg-yellow-400' : 'bg-green-400';
+                const lim = limitesNasc(pista.categoria);
 
                 return (
                   <div key={pista.id}
                     className={`border bg-surface-container transition-all ${aberto ? 'border-primary' : 'border-outline-variant/20 hover:border-outline-variant/50'}`}>
                     {/* cabeçalho mobile da pista */}
-                    <p className="md:hidden px-4 pt-3 text-on-surface-variant" style={lbl}>{pista.nome} · {pista.metros}m</p>
+                    <p className="md:hidden px-4 pt-3 text-on-surface-variant" style={lbl}>{pista.nome} · {rotuloCat(pista.categoria)} · {pista.metros}m</p>
 
                     {/* botão de célula */}
                     <button onClick={() => toggleSlot(hora, pista.id)} className="w-full text-left p-3 flex flex-col gap-2">
@@ -1023,18 +1164,29 @@ function Agenda() {
                         ) : (
                           <div className="flex flex-col gap-1">
                             {rs.map((r, i) => (
-                              <div key={r.id} className="flex items-center gap-2 bg-surface-container px-3 py-2">
+                              <div key={r.id} className="flex flex-wrap items-center gap-2 bg-surface-container px-3 py-2">
                                 <span className="text-on-surface-variant flex-shrink-0" style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>{i + 1}.</span>
-                                <span className="flex-1 text-on-surface truncate" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>{r.nome}</span>
+                                <span className="min-w-0 flex-1 text-on-surface truncate" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '13px' }}>{r.nome}</span>
                                 {r.formaPagamento && (
                                   <span className="flex-shrink-0 border border-secondary/30 px-1.5 text-secondary"
                                     style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>
                                     {r.formaPagamento === 'pix' ? 'PIX' : r.formaPagamento === 'cartao_credito' ? 'CRÉD' : r.formaPagamento === 'cartao_debito' ? 'DÉB' : 'DIN'}
                                   </span>
                                 )}
-                                <button onClick={() => removePiloto(r.id)} className="flex-shrink-0 text-error/40 transition-colors hover:text-error">
-                                  <span className="material-symbols-outlined text-base">close</span>
-                                </button>
+                                {pendRemover !== r.id && (
+                                  <button onClick={() => setPendRemover(r.id)} title="Cancelar reserva" className="flex-shrink-0 text-error/40 transition-colors hover:text-error">
+                                    <span className="material-symbols-outlined text-base">close</span>
+                                  </button>
+                                )}
+                                {pendRemover === r.id && (
+                                  <div className="flex w-full flex-wrap items-center gap-2 border-t border-error/20 pt-2">
+                                    <span className="w-full text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px' }}>
+                                      {Number(r.valor) > 0 ? `Cancelar e estornar R$ ${Number(r.valor).toFixed(2)}?` : 'Cancelar esta reserva?'}
+                                    </span>
+                                    <button onClick={() => removePiloto(r.id)} className="min-w-0 flex-1 border border-error/40 px-2 py-1 text-error hover:bg-error/10" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>CONFIRMAR</button>
+                                    <button onClick={() => setPendRemover(null)} className="min-w-0 flex-1 border border-outline-variant/30 px-2 py-1 text-on-surface-variant hover:bg-surface" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '10px', fontWeight: '700' }}>VOLTAR</button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1046,45 +1198,49 @@ function Agenda() {
                         )}
                         {!cheio && !(dataAtiva < hoje || (dataAtiva === hoje && hora < new Date().toTimeString().slice(0, 5))) && (
                           <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2">
-                            <datalist id="pilotos-agenda">
-                              {pilotosCadastrados.map(p => <option key={p.id} value={p.nome} />)}
+                            <datalist id={`pilotos-agenda-${pista.id}`}>
+                              {pilotosCadastrados.filter(p => calcCategoria(p.nascimento) === pista.categoria).map(p => <option key={p.id} value={p.nome} />)}
                             </datalist>
                             <input type="text" value={formNome}
                               onChange={e => mudarNome(e.target.value)}
                               onKeyDown={e => e.key === 'Enter' && addPiloto(hora, pista.id)}
-                              placeholder="Adicionar piloto…" list="pilotos-agenda" className="modal-input flex-1"
+                              placeholder={`Adicionar piloto ${rotuloCat(pista.categoria)}…`} list={`pilotos-agenda-${pista.id}`} className="modal-input w-full"
                               autoFocus />
-                            <input type="date" value={formNasc} max={dataLocal()} title="Data de nascimento"
-                              onChange={e => setFormNasc(e.target.value)} className="modal-input" style={{ colorScheme: 'dark', width: '150px' }} />
+                            <input type="date" value={formNasc} min={lim.min} max={lim.max} title={`Data de nascimento (${FAIXA_CAT[pista.categoria]})`}
+                              onChange={e => { setFormNasc(e.target.value); setErroAdd(''); }} className="modal-input w-full" style={{ colorScheme: 'dark' }} />
                             <button onClick={() => addPiloto(hora, pista.id)}
-                              className="flex items-center gap-1 bg-primary-container px-3 py-2 text-white transition-opacity hover:opacity-90 flex-shrink-0"
+                              className="flex w-full items-center justify-center gap-1 bg-primary-container px-3 py-2 text-white transition-opacity hover:opacity-90"
                               style={lbl}>
-                              <span className="material-symbols-outlined text-sm">person_add</span>ADD
+                              <span className="material-symbols-outlined text-sm">person_add</span>ADICIONAR
                             </button>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <select value={formFormato} onChange={e => mudarFormato(e.target.value)} className="modal-input" style={{ width: 'auto' }}>
-                              <option value="tempo">Por tempo</option>
-                              <option value="voltas">Por voltas</option>
-                              <option value="">Cortesia (sem cobrança)</option>
-                            </select>
-                            {formFormato && (
-                              <>
-                                <select value={formQtd} onChange={e => setFormQtd(Number(e.target.value))} className="modal-input" style={{ width: 'auto' }}>
-                                  {(formFormato === 'tempo' ? [10, 15, 20, 30] : [5, 10, 15, 20]).map(q =>
-                                    <option key={q} value={q}>{q} {formFormato === 'tempo' ? 'min' : 'voltas'}</option>)}
-                                </select>
-                                <select value={formPag} onChange={e => setFormPag(e.target.value)} className="modal-input" style={{ width: 'auto' }}>
-                                  <option value="dinheiro">Dinheiro</option>
-                                  <option value="pix">PIX</option>
-                                  <option value="cartao_debito">Débito</option>
-                                  <option value="cartao_credito">Crédito</option>
-                                </select>
-                                <span className="text-secondary" style={lbl}>R$ {valorBalcao(pista).toFixed(2)}</span>
-                              </>
+                            <p className="text-on-surface-variant" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '11px' }}>
+                              Pista {rotuloCat(pista.categoria)}: só {FAIXA_CAT[pista.categoria]}.
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <select value={formFormato} onChange={e => mudarFormato(e.target.value)} className="modal-input" style={{ flex: '1 1 6.5rem', minWidth: 0 }}>
+                                <option value="tempo">Por tempo</option>
+                                <option value="voltas">Por voltas</option>
+                                <option value="">Cortesia</option>
+                              </select>
+                              {formFormato && (
+                                <>
+                                  <select value={formQtd} onChange={e => setFormQtd(Number(e.target.value))} className="modal-input" style={{ flex: '1 1 6.5rem', minWidth: 0 }}>
+                                    {(formFormato === 'tempo' ? [10, 15, 20, 30] : [5, 10, 15, 20]).map(q =>
+                                      <option key={q} value={q}>{q} {formFormato === 'tempo' ? 'min' : 'voltas'}</option>)}
+                                  </select>
+                                  <select value={formPag} onChange={e => setFormPag(e.target.value)} className="modal-input" style={{ flex: '1 1 6.5rem', minWidth: 0 }}>
+                                    <option value="dinheiro">Dinheiro</option>
+                                    <option value="pix">PIX</option>
+                                    <option value="cartao_debito">Débito</option>
+                                    <option value="cartao_credito">Crédito</option>
+                                  </select>
+                                  <span className="w-full text-secondary" style={lbl}>R$ {valorBalcao(pista).toFixed(2)}</span>
+                                </>
+                              )}
+                            </div>
+                            {erroAdd && (
+                              <p className="text-error" style={{ fontFamily: 'Hanken Grotesk,sans-serif', fontSize: '12px' }}>{erroAdd}</p>
                             )}
-                          </div>
                           </div>
                         )}
 
@@ -1308,6 +1464,9 @@ function Financeiro() {
   const [comprovante, setComprovante] = useState(null);
   const [form, setForm] = useState({ valor: '', descricao: '', formaPagamento: 'pix', status: 'pago' });
   const reload = () => setRegistros(fat_listar());
+  useEffect(() => {
+    Api.recarregarFaturamento().then(reload).catch(() => {});
+  }, []);
 
   const acao = async (fn) => { try { await fn(); } catch (e) { apiErro(e); } reload(); };
 
@@ -1740,10 +1899,13 @@ function DependentesModal({ piloto, onClose }) {
   );
 }
 
-function Clientes() {
+function Clientes({ buscaInicial }) {
   const [pilotos, setPilotos] = useState(pilotos_listar);
   const [dependentesDe, setDependentesDe] = useState(null);
-  const [busca, setBusca] = useState('');
+  const [busca, setBusca] = useState(buscaInicial?.busca || '');
+  useEffect(() => {
+    if (buscaInicial?.busca !== undefined) setBusca(buscaInicial.busca);
+  }, [buscaInicial]);
   const [pendDelete, setPendDelete] = useState(null);
   const [showCadastro, setShowCadastro] = useState(false);
   const [sucesso, setSucesso] = useState(null); // { nome, senha }
@@ -2100,7 +2262,7 @@ function Relatorios() {
                 <label className="text-on-surface-variant" style={lbl}>PISTA</label>
                 <select value={pista} onChange={e => setPista(e.target.value)} className="modal-input">
                   <option value="">Todas</option>
-                  {PISTAS.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                  {PISTAS.map(p => <option key={p.id} value={p.id}>{p.nome} · {rotuloCat(p.categoria)}</option>)}
                 </select>
               </div>
             </>)}
@@ -2384,11 +2546,13 @@ function Cadastros() {
 // === app ===
 function DashboardAdmin() {
   const [activeTab, setActiveTab] = useState('painel');
+  const [navCtx, setNavCtx] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [novosAgendamentos, setNovosAgendamentos] = useState(() => notif_reservas_novas().length);
 
-  const handleTabChange = (tab) => {
+  const handleTabChange = (tab, ctx = null) => {
     if (tab === 'agenda') { notif_marcar_visto(); setNovosAgendamentos(0); }
+    setNavCtx(ctx);
     setActiveTab(tab);
     setSidebarOpen(false);
   };
@@ -2396,8 +2560,8 @@ function DashboardAdmin() {
   const renderContent = () => {
     switch (activeTab) {
       case 'painel': return <PainelPrincipal onTabChange={handleTabChange} />;
-      case 'agenda': return <Agenda />;
-      case 'clientes': return <Clientes />;
+      case 'agenda': return <Agenda dataInicial={navCtx?.data ? navCtx : null} />;
+      case 'clientes': return <Clientes buscaInicial={navCtx?.busca !== undefined ? navCtx : null} />;
       case 'frota': return <Frota />;
       case 'financeiro': return <Financeiro />;
       case 'classificacao': return <Classificacao />;
@@ -2421,6 +2585,7 @@ function DashboardAdmin() {
           onMenuToggle={() => setSidebarOpen(o => !o)}
           novosAgendamentos={novosAgendamentos}
           onVerAgenda={() => handleTabChange('agenda')}
+          onNavegar={handleTabChange}
         />
         <main className="flex-1 overflow-auto p-4 lg:p-6">{renderContent()}</main>
       </div>

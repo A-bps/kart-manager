@@ -10,6 +10,7 @@ const API_URL = 'http://localhost:8080/api';
 
 const Api = (() => {
   const cache = { pilotos: [], frota: [], reservas: [], faturamento: [], ativas: [], historico: [], dependentes: [], pistas: [] };
+  let ehAdmin = false;
 
   const token = () => sessionStorage.getItem('sp_token');
 
@@ -72,11 +73,13 @@ const Api = (() => {
 
     // --- carga inicial por perfil ---
     async carregar(role) {
+      ehAdmin = role === 'admin';
       const tarefas = [carregarPistas(), carregarFrota(), carregarReservas(), carregarHistorico()];
       if (role === 'admin') tarefas.push(carregarPilotos(), carregarFaturamento(), carregarAtivas());
       else tarefas.push(carregarDependentes());
       await Promise.all(tarefas);
     },
+    recarregarFaturamento: carregarFaturamento,
     // ranking da pagina inicial (publico, sem login)
     async carregarRankingPublico() { await carregarHistorico(); },
     async carregarPistasPublico() { await carregarPistas(); },
@@ -111,12 +114,19 @@ const Api = (() => {
       try {
         return await req('POST', '/reservas', dados);
       } finally {
-        // sucesso ou "horario lotado": de qualquer forma, atualiza as vagas na tela
-        await carregarReservas().catch(() => {});
+        // sucesso ou "horario lotado": de qualquer forma, atualiza as vagas (e o caixa do admin)
+        const tarefas = [carregarReservas().catch(() => {})];
+        if (ehAdmin) tarefas.push(carregarFaturamento().catch(() => {}));
+        await Promise.all(tarefas);
       }
     },
     async remarcarReserva(id, data, hora) { await req('PUT', `/reservas/${id}`, { data, hora }); await carregarReservas(); },
-    async cancelarReserva(id) { await req('DELETE', `/reservas/${id}`); await carregarReservas(); },
+    async cancelarReserva(id) {
+      await req('DELETE', `/reservas/${id}`);
+      const tarefas = [carregarReservas()];
+      if (ehAdmin) tarefas.push(carregarFaturamento().catch(() => {}));
+      await Promise.all(tarefas);
+    },
 
     // --- corridas (admin): iniciar, encerrar; o historico alimenta ranking e historico do piloto ---
     async iniciarProva(dados) { const p = await req('POST', '/provas', dados); await carregarAtivas(); return p; },
@@ -141,7 +151,15 @@ const Api = (() => {
       listar: (caminho) => req('GET', `/${caminho}`),
       criar: (caminho, corpo) => req('POST', `/${caminho}`, corpo),
       atualizar: (caminho, chave, corpo) => req('PUT', `/${caminho}/${chave}`, corpo),
-      remover: (caminho, chave) => req('DELETE', `/${caminho}/${chave}`),
+      remover: async (caminho, chave) => {
+        const res = await req('DELETE', `/${caminho}/${chave}`);
+        if (caminho === 'reservas') {
+          const tarefas = [carregarReservas().catch(() => {})];
+          if (ehAdmin) tarefas.push(carregarFaturamento().catch(() => {}));
+          await Promise.all(tarefas);
+        }
+        return res;
+      },
     },
 
     // --- financeiro (admin) ---
