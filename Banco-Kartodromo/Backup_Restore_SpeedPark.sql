@@ -58,18 +58,3 @@ go
 select * from KartManager_Restaurado.dbo.v_Resumo_Financeiro_SpeedPark
 go
 
--- 5) apagar o banco de conferencia (opcional)
--- drop database KartManager_Restaurado
--- go
-
--- 6) restaurar por cima do original, em caso de desastre (pare a API antes)
--- alter database KartManager set single_user with rollback immediate
--- go
---
--- restore database KartManager
--- from disk = 'C:\Program Files\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\Backup\KartManager_Completo.bak'
--- with replace
--- go
---
--- alter database KartManager set multi_user
--- go
